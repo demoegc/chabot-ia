@@ -1,7 +1,13 @@
+const axios = require("axios");
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const { OpenAI } = require("openai");
+const text = require('./utils/text.js');
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+const BITRIX24_API_URL = process.env.BITRIX24_API_URL;
+const BITRIX24_HISTORIAL_FIELD = process.env.BITRIX24_HISTORIAL_FIELD || "UF_CRM_1752177274"
 
 // Almacén de conversaciones por chatId
 const conversationStore = new Map();
@@ -67,6 +73,12 @@ async function responderConPdf(preguntaUsuario, chatId) {
         contextoDocumento += `--- Fragmento ${idx + 1} ---\n${fragmento.texto}\n\n`;
     });
 
+    // Verificar si existe un historial de conversación en Bitrix24
+    const contactoExistente = await checkContactHistory(chatId);
+    if (contactoExistente) {
+        contextoHistorial = contactoExistente; // Usar el historial recuperado de Bitrix24
+    }
+
     // Preparar mensajes para OpenAI con historial completo
 
     console.log('contextoHistorial', contextoHistorial)
@@ -74,118 +86,33 @@ async function responderConPdf(preguntaUsuario, chatId) {
         {
             role: "system",
             content: `Nombre: Paula Contreras: Asistente virtual de WhatsApp del equipo de "Tu Agente de Inmigración". Tono: Cercano, humano, profesional pero natural. Puede usar pequeños errores ortográficos y abreviaciones comunes. Estilo: Mensajes cortos (1 a 2 líneas máx.), tipo chat humano.
-Sienpre que pregunte por un servicio, dile los presios y si guta pagar para seguir con el proceso de desea. Puedes también buscar información en la web en caso que pregunten por elguna cosa referente al trámite
+Sienpre que pregunte por un servicio, dile los presios y si guta pagar para seguir con el proceso de desea.
+
+Saludo genérico (si no menciona trámite):
+"¡Hola! Soy Paula Contreras, del equipo de Tu Agente de Inmigración.😊"
+"¿Estás interesad@ en aplicar a algún trámite?"
 
 ${conversacion.isFirstMessage ? "" : "Ya no saludes"}
 
-Importante: Si el cliente si quiere seguir con el proceso de algún trámite, dile que te pase los documentos correspondientes, dile todos los documentos que te tiene que envíar, sin excepción. Si te llega un mensaje vacío de parte del cliente, dile: "Espera un momento por favor"
-
-Instrucciones Clave:
-Estilo de Comunicación:
-
-Mensajes breves (1-2 líneas).
-
-Emojis moderados (ej. ✅, ⏳, 🙋‍♀️).
-
-Lenguaje coloquial (errores menores opcionales, ej. "tramite").
-
-Inicio de Conversación:
-
-Saludo genérico (si no menciona trámite):
-"¡Hola! Soy Paula Contreras, del equipo de Tu Agente de Inmigración. ¿Cómo es tu nombre para saber cómo dirigirme a ti? 😊"
-"¿Estás interesad@ en aplicar a algún trámite?"
-
-Si menciona trámite:
-"¡Hola! Soy Paula Contreras. ¿Cómo es tu nombre para hablarte mejor?"
-Proceder según el trámite específico.
-
-Si no da nombre: Continuar normalmente.
-
-Precalificación por Trámite:
-
-Asilo:
-"¿Sabes si tu solicitud es afirmativa (entraste con visa por avión) o defensiva (por frontera)? ¿Por dónde ingresaste al país? 🛂"
-
-Evitar tono agresivo.
-
-Petición Familiar:
-"¿La persona a pedir está dentro o fuera de EE.UU.? ¿Quién es ella para ti? 👨‍👩‍👧‍👦"
-
-Ciudadanía:
-"¿Tienes 5 años como residente (o 3 si estás casad@ con ciudadano)? ¿Has salido de EE.UU. por +6 meses seguidos? 🗽"
-
-Permiso de Trabajo:
-"¿Es tu primer permiso o renovación? ¿Está vinculado a asilo/otro trámite? 💼"
-
-Precios:
-
-Asilo: $599 (incluye 5 traducciones + llamada de apoyo).
-
-Permiso de Trabajo: $120 + tarifa USCIS.
-
-Petición Familiar: $1,200 + tarifas USCIS.
-
-Ciudadanía: $350 + tarifas USCIS.
-
-Cierre de Conversación:
-
-Si desea seguir con el proceso:
-"Gracias por la info. Una compañera te contactará para continuar. Yo estoy aquí en este turno extra para apoyarte. 📅"
-Ofrecer agenda:
-"¿Prefieres contacto mañana en la mañana o tarde? (Horario: 10am-7pm, Miami)."
-
-Usar doble alternativa: "¿Mañana en la mañana o tarde te va mejor?"
-
-Para Obamacare/otros:
-"¡Sí! También trabajamos con seguros como Obamacare. ¿Te paso con el equipo de salud? ¿Prefieres que te escribamos o llamemos? 🏥"
-
-Gestión de Objeciones:
-
-"Voy a pensarlo":
-"Claro, te entiendo. ⏳ Solo recuerda: el tiempo es clave en estos trámites."
-
-"Está caro":
-"Nuestros precios están debajo del mercado y con acompañamiento real. 💡"
-
-"No estoy list@":
-"No pasa nada. ¿Quieres que te contactemos más adelante? 📆"
-
-Prohibido:
-
-Saltear preguntas de precalificación.
-
-Ser insistente o agresivo.
-
-Ejemplo de Flujo:
-Cliente: "Quiero aplicar para asilo"
-Paula:
-
-"¡Hola! Soy Paula. ¿Cómo es tu nombre? 😊"
-
-(Si no responde nombre): "¿Sabes si tu solicitud es afirmativa (visa/avión) o defensiva (frontera)? 🛃"
-
-"El costo es $599 (incluye 5 traducciones + apoyo). ¿Prefieres que te contacten mañana en la mañana o tarde?"
+${text}
 
 Notas Adicionales:
-
 Si el cliente se desvía del tema, redirigir amablemente al trámite mencionado anteriormente.
 Mantener empatía y profesionalismo en todo momento.
 Si el cliente quiere seguir con el porceso pero no le has dicho que mande los documentos, dile que para seguir con el porceso tiene que enviar los documentos, y se los enumeras
 
 Instrucciones:
-1. Responde como un humano común, sin frases típicas de bot, responde muy informal.
-2. Solo saluda en el primer mensaje, no repitas saludos, si ya dijiste ¡Hola! no lo digas otra vez.
-3. No digas nunca que eres un bot, asistente virtual o inteligencia artificial.
-4. Si no tienes la respuesta, puedes decir 'Déjame revisarlo y te aviso'.
-5. Evita respuestas largas; sé directo, cálido y profesional.
-6. No uses más signo de exclamación.
-7. Usa un estilo de conversación normal, como si chatearas en WhatsApp.
-8. deja de poner al princiío de cada respuesta "¡Claro!", "¡Perfecto!", "¡Gracias por preguntar!" o cualquier cosa similar, En vez de decir ¡Claro! ¿Para qué trámite necesitas los precios?, tienes que decir ¿Para qué trámite necesitas los precios?
-9. Si el cliente hace una pregunta sobre por qué tarda un trámite, responde explicando brevemente el motivo real o probable del retraso según el trámite, nunca respondas con una pregunta genérica o cambiando de tema.
-10. Si tienes que decirle al cliente que espere, solo responde "Espera un momento por favor" o una variante breve, sin agregar preguntas o continuar el flujo hasta nueva respuesta.
-11. No respondas preguntas de los usuarios haciendo otra pregunta, a menos que sea estrictamente necesario para completar el trámite o porque la información del cliente es indispensable.
-12. Si el usuario hace una pregunta que no es sobre precios o trámite, nunca devuelvas respuestas tipo "¿Para qué trámite necesitas los precios?", en vez de eso, responde de forma lógica y útil según el contexto de lo que pregunta.
-13. Prioriza siempre respuestas lógicas y naturales, relacionadas directamente con la intención y el contexto de la pregunta. Evita respuestas genéricas, forzadas o sin relación.
+1. Solo saluda en el primer mensaje, no repitas saludos, si ya dijiste ¡Hola! no lo digas otra vez.
+2. No digas nunca que eres un bot, asistente virtual o inteligencia artificial.
+3. Si no tienes la respuesta, puedes decir 'Déjame revisarlo y te aviso'.
+4. Evita respuestas largas; sé directo, cálido y profesional.
+5. No uses más signo de exclamación.
+6. Usa un estilo de conversación normal, como si chatearas en WhatsApp.
+7. deja de poner al princiío de cada respuesta "¡Claro!", "¡Perfecto!", "¡Gracias por preguntar!" o cualquier cosa similar, En vez de decir ¡Claro! ¿Para qué trámite necesitas los precios?, tienes que decir ¿Para qué trámite necesitas los precios?
+8. Si el cliente hace una pregunta sobre por qué tarda un trámite, responde explicando brevemente el motivo real o probable del retraso según el trámite, nunca respondas con una pregunta genérica o cambiando de tema.
+9. Si tienes que decirle al cliente que espere, solo responde "Espera un momento por favor" o una variante breve, sin agregar preguntas o continuar el flujo hasta nueva respuesta.
+10. No respondas preguntas de los usuarios haciendo otra pregunta, a menos que sea estrictamente necesario para completar el trámite o porque la información del cliente es indispensable.
+11. Si el usuario hace una pregunta que no es sobre precios o trámite, nunca devuelvas respuestas tipo "¿Para qué trámite necesitas los precios?", en vez de eso, responde de forma lógica y útil según el contexto de lo que pregunta.
 
 ${contextoHistorial}
 `
@@ -211,6 +138,9 @@ ${contextoHistorial}
         respuesta: respuesta
     });
 
+    // Actualizar el campo en Bitrix24 con el nuevo historial
+    await updateContactHistory(chatId, conversacion.history, contactoExistente || '');
+
     // Marcar que ya pasó el primer mensaje
     if (conversacion.isFirstMessage) {
         conversacion.isFirstMessage = false;
@@ -218,6 +148,73 @@ ${contextoHistorial}
 
     return { respuesta };
 }
+
+// Función para verificar el historial en Bitrix24
+async function checkContactHistory(chatId) {
+    try {
+        const response = await axios.get(`${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=${BITRIX24_HISTORIAL_FIELD}`);
+        if (response.data.result && response.data.result.length > 0) {
+            return response.data.result[0][BITRIX24_HISTORIAL_FIELD] || ''; // Retorna el historial si existe
+        }
+    } catch (error) {
+        console.error("Error al verificar el historial en Bitrix24:", error.message);
+    }
+    return '';
+}
+
+// Función para actualizar el historial en Bitrix24
+async function updateContactHistory(chatId, history, contactoExistente) {
+    try {
+        // Buscar el contacto en Bitrix24 usando el número de teléfono (chatId)
+        const response = await axios.get(`${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=${BITRIX24_HISTORIAL_FIELD}`);
+
+        if (response.data.result.length === 0) {
+            console.log(`No se encontró contacto con el número ${chatId}`);
+            return; // Si no se encuentra el contacto, terminamos la función
+        }
+
+        // Obtener el ID del contacto
+        const contactId = response.data.result[0].ID;
+
+        // Crear el historial a partir de las interacciones y eliminar los emojis
+        const historial = history.map(interaccion => {
+            let pregunta = interaccion.pregunta.replace(/[\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
+            let respuesta = interaccion.respuesta.replace(/[\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
+            return `- Cliente: ${pregunta}\n- Asistente IA: ${respuesta}\n\n`;
+        });
+
+        // Obtener la hora actual en UTC-4
+        const now = new Date();
+        const utcMinus4 = new Date(now.getTime() - (4 * 60 * 60 * 1000));
+        const horaInicio = `Hora de inicio de la conversación: ${utcMinus4.toISOString().replace('T', ' ').substring(0, 19)}\n\n`;
+
+        // Datos que se actualizarán en Bitrix24
+        let updateData;
+        if (!contactoExistente || contactoExistente.length === 0) {
+            // Si no hay historial existente, agregamos la hora de inicio
+            updateData = {
+                [BITRIX24_HISTORIAL_FIELD]: horaInicio + historial.join('')
+            };
+        } else {
+            // Si ya hay historial, solo agregamos la nueva interacción
+            updateData = {
+                [BITRIX24_HISTORIAL_FIELD]: contactoExistente + historial[historial.length - 1]
+            };
+        }
+
+        // Actualizar el contacto en Bitrix24 con el nuevo historial
+        const updateResponse = await axios.post(`${BITRIX24_API_URL}crm.contact.update`, {
+            id: contactId,
+            fields: updateData
+        });
+
+        console.log(`Historial actualizado correctamente en el contacto con ID: ${contactId}`);
+    } catch (error) {
+        console.error("Error al actualizar el historial en Bitrix24:", error.message);
+    }
+}
+
+
 
 // Limpiar conversaciones antiguas periódicamente (si aún es necesario)
 function limpiarConversacionesInactivas() {
@@ -231,7 +228,67 @@ function limpiarConversacionesInactivas() {
     });
 }
 
+// Función para obtener resumen completo del historial de conversación
+async function obtenerResumenHistorial(chatId) {
+    try {
+        // Obtener historial local y de Bitrix24 (igual que antes)
+        const conversacionLocal = conversationStore.get(chatId);
+        let historialCompleto = '';
+        
+        if (conversacionLocal && conversacionLocal.history.length > 0) {
+            historialCompleto = conversacionLocal.history.map(interaccion => {
+                return `Cliente: ${interaccion.pregunta}\nAsistente: ${interaccion.respuesta}`;
+            }).join('\n\n');
+        }
+
+        // Obtener historial de Bitrix24
+        const historialBitrix = await checkContactHistory(chatId);
+        if (historialBitrix && historialBitrix.length > 0) {
+            historialCompleto += (historialCompleto ? '\n\n' : '') + historialBitrix;
+        }
+
+        if (!historialCompleto) {
+            return "No hay historial de conversación con este cliente.";
+        }
+
+        // Enviar a OpenAI para resumen
+        const prompt = `Resume la siguiente conversación de WhatsApp con un cliente de inmigración, destacando:
+1. Nombre y apellido
+2. Número de Whatsapp: +${chatId}
+3. Trámites mencionados
+4. Nivel de interés
+6. Estado migratorio
+7. Canal de entrada: (Meta Ads)
+8. Dudas pendientes
+9. Fecha y hora de inicio de la conversación
+
+Conversación:
+${historialCompleto}
+
+Resumen profesional:`;
+
+        const resumenResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{
+                role: "system",
+                content: "Eres un asistente experto en resumir conversaciones de inmigración. Proporciona un resumen claro y conciso."
+            }, {
+                role: "user",
+                content: prompt
+            }],
+            temperature: 0.3
+        });
+
+        return resumenResponse.choices[0].message.content;
+
+    } catch (error) {
+        console.error("Error al obtener resumen del historial:", error.message);
+        return "Error al generar el resumen de la conversación.";
+    }
+}
+
 module.exports = {
     responderConPdf,
-    limpiarConversacionesInactivas
+    limpiarConversacionesInactivas,
+    obtenerResumenHistorial
 };

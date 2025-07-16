@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
@@ -5,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 const axios = require("axios");
-const { responderConPdf } = require("./consulta_empresa.js");
+const { responderConPdf, obtenerResumenHistorial } = require("./consulta_empresa.js");
 const sendMessage = require('./sendMessage.js')
 
 const app = express();
@@ -18,9 +19,9 @@ const OPENAI_API_URL = 'https://api.openai.com/v1/audio/transcriptions';
 
 // Configuración de Bitrix24
 const BITRIX24_API_URL = process.env.BITRIX24_API_URL;
-const BITRIX24_LIST_FIELD_ID = 'UF_CRM_1752006453';
-const BITRIX24_LIST_VALUE = '2223'; // Yes
-const BITRIX24_ADMIN_VALUE = '2225'; // Valor para Admin
+const BITRIX24_LIST_FIELD_ID = process.env.BITRIX24_LIST_FIELD_ID || 'UF_CRM_1752006453';
+const BITRIX24_LIST_VALUE = process.env.BITRIX24_LIST_VALUE || '2223'; // Yes
+const BITRIX24_ADMIN_VALUE = process.env.BITRIX24_ADMIN_VALUE || '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
   return res.json({ message: 'Servidor corriendo' })
@@ -34,14 +35,16 @@ app.get('/send-message', async (req, res) => {
 })
 
 app.post('/webhook', async (req, res) => {
-  
+
+  console.log('entró al webhook')
+
   try {
     const { messages } = req.body;
 
     if (!messages) {
-      if(req.body.test) {
+      if (req.body.test) {
         console.log('Webhook conectado')
-        return res.status(200).json({status: 200})
+        return res.status(200).json({ status: 200 })
       }
       return console.log('No se recibió ningún mensaje')
     }
@@ -49,19 +52,31 @@ app.post('/webhook', async (req, res) => {
     let message = messages[0]
     const { chatId, type, sentFromApp, authorName, authorId, status } = message;
 
-    if (chatId !== '19545480212') {
+    if (chatId !== '19545480212' && chatId !== '584129253568') {
       console.log('chatId', chatId, 'Es diferente a 19545480212')
       return res.end()
     }
 
-    if (sentFromApp || status == 'read' || authorName === 'Admin') return
+    // console.log('message', message)
 
-    // Caso especial: Mensaje de Admin
     if (authorId && parseInt(authorId) > 0) {
       console.log(`🛠️ Mensaje de Admin recibido para ${chatId}`);
-      await updateContactField(chatId, BITRIX24_LIST_FIELD_ID, BITRIX24_ADMIN_VALUE);
+
+      try {
+        const resumenHistorial = await obtenerResumenHistorial(chatId);
+        console.log(`📜 Resumen profesional de la conversación con ${chatId}:\n`);
+        console.log(resumenHistorial);
+        console.log('\n' + '-'.repeat(50) + '\n'); // Separador visual
+
+        await updateContactField(chatId, BITRIX24_LIST_FIELD_ID, BITRIX24_ADMIN_VALUE, resumenHistorial);
+      } catch (error) {
+        console.error('Error al procesar mensaje de admin:', error);
+      }
+
       return res.status(200).end();
     }
+
+    if (sentFromApp || status == 'read' || authorName === 'Admin') return
 
     let messageCustomer;
 
@@ -131,8 +146,9 @@ app.post('/webhook', async (req, res) => {
     const { respuesta } = await responderConPdf(messageCustomer, chatId);
 
     // Enviar respuesta
-    console.log('sendMessage(respuesta, chatId)', respuesta, chatId)
-    await sendMessage(respuesta, chatId)
+    // console.log('sendMessage(respuesta, chatId)', respuesta, chatId)
+    // await sendMessage(respuesta, chatId)
+    console.log(respuesta)
 
     // Crear nuevo contacto en Bitrix24 (si no existe)
     if (shouldRespond === 'create') {
@@ -214,10 +230,11 @@ async function createContactInBitrix24(phoneNumber, name) {
 }
 
 // Función para actualizar un campo de un contacto en Bitrix24
-async function updateContactField(phoneNumber, fieldId, fieldValue) {
+// Función para actualizar un campo de un contacto en Bitrix24
+async function updateContactField(phoneNumber, fieldId, fieldValue, resumenHistorial) {
   try {
     // Primero obtener el ID del contacto
-    const response = await axios.get(`${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID`);
+    const response = await axios.get(`${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=${fieldId}`);
 
     if (!response.data.result || response.data.result.length === 0) {
       console.log(`No se encontró contacto con número ${phoneNumber}`);
@@ -225,14 +242,34 @@ async function updateContactField(phoneNumber, fieldId, fieldValue) {
     }
 
     const contactId = response.data.result[0].ID;
+    const currentFieldValue = response.data.result[0][fieldId];
 
-    // Actualizar el campo
-    const updateResponse = await axios.post(`${BITRIX24_API_URL}crm.contact.update`, {
+    // Verificar si el valor del campo es diferente al valor que se desea actualizar
+    if (currentFieldValue === fieldValue) {
+      console.log(`El campo ${fieldId} ya tiene el valor ${fieldValue}, no se actualizará.`);
+      return null;  // No se realiza la actualización
+    }
+
+    const contactUpdateData = {
       id: contactId,
       fields: {
         [fieldId]: fieldValue
       }
-    });
+    };
+
+    const commentData = {
+      fields: {
+        "ENTITY_ID": contactId,
+        "ENTITY_TYPE": "contact", // Asegúrate de que "contact" sea el valor correcto para ENTITY_TYPE
+        "COMMENT": resumenHistorial,
+        "AUTHOR_ID": 221, // Asegúrate de que 5 sea un ID de usuario válido y permitido
+      }
+    };
+
+    const [updateResponse, commentResponse] = await Promise.all([
+      axios.post(`${BITRIX24_API_URL}crm.contact.update`, contactUpdateData),
+      axios.post(`${BITRIX24_API_URL}crm.timeline.comment.add`, commentData)
+    ])
 
     console.log(`🔄 Contacto ${contactId} actualizado. Campo ${fieldId} establecido a ${fieldValue}`);
     return updateResponse.data.result;
@@ -241,6 +278,7 @@ async function updateContactField(phoneNumber, fieldId, fieldValue) {
     throw error;
   }
 }
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor escuchando en puerto ${PORT}`));
