@@ -146,8 +146,8 @@ app.post('/webhook', async (req, res) => {
     const { respuesta } = await responderConPdf(messageCustomer, chatId);
 
     // Enviar respuesta
-    // console.log('sendMessage(respuesta, chatId)', respuesta, chatId)
-    // await sendMessage(respuesta, chatId)
+    console.log('sendMessage(respuesta, chatId)', respuesta, chatId)
+    await sendMessage(respuesta, chatId)
     console.log(respuesta)
 
     // Crear nuevo contacto en Bitrix24 (si no existe)
