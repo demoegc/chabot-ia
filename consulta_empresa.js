@@ -42,6 +42,119 @@ async function recuperarFragments(pregunta, topK = 3) {
     return similitudes.slice(0, topK);
 }
 
+async function generarMensajeSeguimiento(chatId) {
+    try {
+        // Obtener historial de conversación (local o de Bitrix24)
+        let historial = '';
+        let contactoExistente = '';
+
+        // 1. Verificar historial local
+        if (conversationStore.has(chatId)) {
+            const conversacion = conversationStore.get(chatId);
+            if (conversacion.history.length > 0) {
+                historial = conversacion.history.map(interaccion => {
+                    return `Cliente: ${interaccion.pregunta}\nAsistente: ${interaccion.respuesta}`;
+                }).join('\n\n');
+            }
+        }
+
+        // 2. Buscar historial en Bitrix24 si no hay suficiente contexto local
+        contactoExistente = await checkContactHistory(chatId);
+        if (!historial && contactoExistente) {
+            historial = contactoExistente;
+        }
+
+        // 3. Si no hay historial en absoluto
+        if (!historial) {
+            const mensajeDefault = "Hola, ¿en qué puedo ayudarte hoy?";
+            // Guardar en Bitrix24 incluso el mensaje por defecto
+            await registrarSeguimientoEnBitrix(chatId, mensajeDefault, contactoExistente || '');
+            return { respuesta: mensajeDefault };
+        }
+
+        // 4. Generar mensaje de seguimiento
+        const prompt = `Basado en el siguiente historial de conversación, genera un mensaje de seguimiento amigable y natural para WhatsApp, preguntando si el cliente sigue interesado en el trámite o servicio mencionado anteriormente. El mensaje debe ser corto (1-2 líneas), cálido y profesional, sin signos de exclamación.
+
+Historial de conversación:
+${historial}
+
+Mensaje de seguimiento:`;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{
+                role: "system",
+                content: "Eres un asistente experto en redactar mensajes de seguimiento para clientes de inmigración. Usa un tono cálido y profesional, estilo WhatsApp."
+            }, {
+                role: "user",
+                content: prompt
+            }],
+            temperature: 0.5
+        });
+
+        const mensajeSeguimiento = response.choices[0].message.content;
+
+        // 5. Registrar el seguimiento en Bitrix24
+        await registrarSeguimientoEnBitrix(chatId, mensajeSeguimiento, contactoExistente || '');
+
+        // 6. Actualizar historial local si existe
+        if (conversationStore.has(chatId)) {
+            const conversacion = conversationStore.get(chatId);
+            conversacion.history.push({
+                pregunta: "[SISTEMA] Mensaje de seguimiento automático",
+                respuesta: mensajeSeguimiento
+            });
+        }
+
+        return { respuesta: mensajeSeguimiento };
+
+    } catch (error) {
+        console.error("Error al generar mensaje de seguimiento:", error.message);
+        const mensajeError = "Hola, ¿sigues interesado en el trámite que hablamos anteriormente?";
+        await registrarSeguimientoEnBitrix(chatId, mensajeError, '');
+        return { respuesta: mensajeError };
+    }
+}
+
+
+// Función auxiliar para registrar seguimientos en Bitrix24
+async function registrarSeguimientoEnBitrix(chatId, mensaje, historialExistente) {
+    try {
+        // Buscar contacto en Bitrix24
+        const response = await axios.get(`${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=${BITRIX24_HISTORIAL_FIELD}`);
+
+        if (response.data.result.length === 0) {
+            console.log(`No se encontró contacto con número ${chatId} para registrar seguimiento`);
+            return;
+        }
+
+        const contactId = response.data.result[0].ID;
+        const now = new Date();
+        const utcMinus4 = new Date(now.getTime() - (4 * 60 * 60 * 1000));
+        const timestamp = `[${utcMinus4.toISOString().replace('T', ' ').substring(0, 19)}] `;
+
+        // Formatear mensaje para el historial (sin emojis)
+        const mensajeFormateado = mensaje.replace(/[\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
+        const entradaHistorial = `${timestamp}Seguimiento automático:\n- Asistente: ${mensajeFormateado}\n\n`;
+
+        // Actualizar el campo de historial
+        const updateData = {
+            [BITRIX24_HISTORIAL_FIELD]: historialExistente
+                ? historialExistente + entradaHistorial
+                : entradaHistorial
+        };
+
+        await axios.post(`${BITRIX24_API_URL}crm.contact.update`, {
+            id: contactId,
+            fields: updateData
+        });
+
+        console.log(`Seguimiento registrado para contacto ${contactId}`);
+    } catch (error) {
+        console.error("Error al registrar seguimiento en Bitrix24:", error.message);
+    }
+}
+
 async function responderConPdf(preguntaUsuario, chatId) {
     // Inicializar o recuperar el historial de conversación
     if (!conversationStore.has(chatId)) {
@@ -292,5 +405,6 @@ Resumen profesional:`;
 module.exports = {
     responderConPdf,
     limpiarConversacionesInactivas,
-    obtenerResumenHistorial
+    obtenerResumenHistorial,
+    generarMensajeSeguimiento
 };

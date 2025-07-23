@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // Configuración
 const API_URL = 'https://api.wazzup24.com/v3/webhooks';
-const API_KEY = 'd424b75927744c8f828ac9261ece59e3'; // Reemplaza con tu API Key real
+const API_KEY = '388c6743795c43b497b5408a617bec2d'; // Reemplaza con tu API Key real
 const WEBHOOK_URI = 'https://20f16942a681.ngrok-free.app/webhook'; // Tu URL de webhook
 
 // Datos para configurar el webhook
@@ -31,7 +31,7 @@ async function configureWebhook() {
 }
 
 // Ejecutar
-configureWebhook();
+// configureWebhook();
 
 async function getWebhookStatus() {
   try {
@@ -47,4 +47,4 @@ async function getWebhookStatus() {
   }
 }
 
-// getWebhookStatus();
+getWebhookStatus();

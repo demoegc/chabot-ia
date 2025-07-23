@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 const axios = require("axios");
-const { responderConPdf, obtenerResumenHistorial } = require("./consulta_empresa.js");
+const { responderConPdf, obtenerResumenHistorial, generarMensajeSeguimiento } = require("./consulta_empresa.js");
 const sendMessage = require('./sendMessage.js')
 
 const app = express();
@@ -24,7 +24,7 @@ const BITRIX24_LIST_VALUE = process.env.BITRIX24_LIST_VALUE || '2223'; // Yes
 const BITRIX24_ADMIN_VALUE = process.env.BITRIX24_ADMIN_VALUE || '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
-  return res.json({ message: 'Servidor corriendo' })
+  return res.json({ message: 'Última cambio manual del servidor el día 23/07/2025 17:00' })
 })
 
 app.get('/send-message', async (req, res) => {
@@ -32,6 +32,21 @@ app.get('/send-message', async (req, res) => {
   sendMessage('Test desde la api', '584129253568')
 
   return res.json({ message: 'Mensaje enviado' })
+})
+
+app.post('/mensaje-recordatorio', async (req, res) => {
+
+  const { phone } = req.query;
+
+  const chatId = phone.split(',')[0].trim();
+
+  const { respuesta } = await generarMensajeSeguimiento(chatId);
+
+  // Enviar respuesta
+  console.log('sendMessage(respuesta, chatId)', respuesta, chatId)
+  await sendMessage(respuesta, chatId)
+  console.log(respuesta)
+  return res.json({ message: 'Mensaje de recordatorio enviado' })
 })
 
 app.post('/webhook', async (req, res) => {
@@ -52,7 +67,7 @@ app.post('/webhook', async (req, res) => {
     let message = messages[0]
     const { chatId, type, sentFromApp, authorName, authorId, status } = message;
 
-    if (chatId !== '19545480212') {
+    if (chatId !== '19545480212' && chatId !== '584129253568') {
       console.log('chatId', chatId, 'Es diferente a 19545480212')
       return res.end()
     }
