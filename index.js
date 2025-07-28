@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 const axios = require("axios");
-const { responderConPdf, obtenerResumenHistorial, generarMensajeSeguimiento } = require("./consulta_empresa.js");
+const { responderConPdf, obtenerResumenHistorial, generarMensajeSeguimiento, updateContactHistory } = require("./consulta_empresa.js");
 const sendMessage = require('./sendMessage.js')
 
 const app = express();
@@ -24,7 +24,7 @@ const BITRIX24_LIST_VALUE = process.env.BITRIX24_LIST_VALUE || '2223'; // Yes
 const BITRIX24_ADMIN_VALUE = process.env.BITRIX24_ADMIN_VALUE || '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
-  return res.json({ message: 'Última cambio manual del servidor el día 23/07/2025 17:00' })
+  return res.json({ message: 'Última cambio manual del servidor el día 28/07/2025 17:31' })
 })
 
 app.get('/send-message', async (req, res) => {
@@ -49,9 +49,12 @@ app.post('/mensaje-recordatorio', async (req, res) => {
   return res.json({ message: 'Mensaje de recordatorio enviado' })
 })
 
-app.post('/webhook', async (req, res) => {
+let respondiendo = {}
 
+app.post('/webhook', async (req, res) => {
   console.log('entró al webhook')
+
+  let idRuta;
 
   try {
     const { messages } = req.body;
@@ -67,12 +70,20 @@ app.post('/webhook', async (req, res) => {
     let message = messages[0]
     const { chatId, type, sentFromApp, authorName, authorId, status } = message;
 
-    if (chatId !== '19545480212' && chatId !== '584129253568') {
-      console.log('chatId', chatId, 'Es diferente a 19545480212')
-      return res.end()
+    if (!respondiendo[chatId]) {
+      respondiendo[chatId] = {count: 0}
     }
 
-    // console.log('message', message)
+    let identificador = Date.now();
+    idRuta = identificador;
+    respondiendo[chatId].identificador = identificador;
+    respondiendo[chatId].count += 1
+
+    if (chatId !== '19545480212' && chatId !== '584129253568') {
+      console.log('chatId', chatId, 'Es diferente a 19545480212')
+      delete respondiendo[chatId]
+      return res.end()
+    }
 
     if (authorId && parseInt(authorId) > 0) {
       console.log(`🛠️ Mensaje de Admin recibido para ${chatId}`);
@@ -81,17 +92,21 @@ app.post('/webhook', async (req, res) => {
         const resumenHistorial = await obtenerResumenHistorial(chatId);
         console.log(`📜 Resumen profesional de la conversación con ${chatId}:\n`);
         console.log(resumenHistorial);
-        console.log('\n' + '-'.repeat(50) + '\n'); // Separador visual
+        console.log('\n' + '-'.repeat(50) + '\n');
 
         await updateContactField(chatId, BITRIX24_LIST_FIELD_ID, BITRIX24_ADMIN_VALUE, resumenHistorial);
       } catch (error) {
         console.error('Error al procesar mensaje de admin:', error);
       }
 
+      delete respondiendo[chatId]
       return res.status(200).end();
     }
 
-    if (sentFromApp || status == 'read' || authorName === 'Admin') return
+    if (sentFromApp || status == 'read' || authorName === 'Admin') {
+      delete respondiendo[chatId]
+      return;
+    }
 
     let messageCustomer;
 
@@ -146,7 +161,10 @@ app.post('/webhook', async (req, res) => {
       }
     }
 
-    if (!messageCustomer) return
+    if (!messageCustomer) {
+      delete respondiendo[chatId]
+      return
+    }
 
     // Verificar el contacto en Bitrix24 y el valor del campo específico
     const shouldRespond = await checkContactAndFieldValue(chatId);
@@ -154,28 +172,84 @@ app.post('/webhook', async (req, res) => {
 
     if (!shouldRespond) {
       console.log(`No se responderá al contacto ${chatId} (el campo no tiene el valor requerido o el contacto no existe)`);
+      delete respondiendo[chatId]
       return res.status(200).end();
     }
 
-    // Procesar mensaje solo si se debe responder
-    const { respuesta } = await responderConPdf(messageCustomer, chatId);
+    let aux = true
+    let count = 0
+    while (aux && count < 10 && respondiendo[chatId].count > 1) {
+      console.log('entró al while')
 
-    // Enviar respuesta
-    console.log('sendMessage(respuesta, chatId)', respuesta, chatId)
-    await sendMessage(respuesta, chatId)
-    console.log(respuesta)
+      console.log('respondiendo[chatId].previousMessage', respondiendo[chatId].previousMessage)
+      if(respondiendo[chatId]?.previousMessage) {
+        aux = false
+        messageCustomer = respondiendo[chatId]?.previousMessage + '\n' + messageCustomer;
+      }
 
-    // Crear nuevo contacto en Bitrix24 (si no existe)
-    if (shouldRespond === 'create') {
-      await createContactInBitrix24(chatId, authorName);
+      await esperar(1 * 1000);
+      count++;
     }
 
-    res.status(200).end();
+
+    // Procesar mensaje solo si se debe responder
+    console.log('messageCustomer', messageCustomer)
+    const { respuesta, history, contactoExistente, preguntaUsuario } = await responderConPdf(messageCustomer, chatId);
+    respondiendo[chatId].previousMessage = messageCustomer
+
+    // Calcular tiempo de espera y mostrar información
+    const tiempoEspera = calcularTiempoEscritura(respuesta);
+    const palabras = respuesta.trim().split(/\s+/).length;
+    console.log(`✍️ Simulando escritura de ${palabras} palabras (esperando ${tiempoEspera.toFixed(1)} segundos)...`);
+
+    // Esperar antes de enviar
+    await esperar(tiempoEspera * 1000);
+
+    if (respondiendo[chatId]?.identificador === idRuta) {
+      // Enviar respuesta
+      // await sendMessage(respuesta, chatId)
+      updateContactHistory(chatId, history, contactoExistente)
+      console.log(respuesta)
+
+      // Crear nuevo contacto en Bitrix24 (si no existe)
+      if (shouldRespond === 'create') {
+        await createContactInBitrix24(chatId, authorName);
+      }
+
+      delete respondiendo[chatId]
+      res.status(200).end();
+    }
+    else {
+      console.log('Se envió otro mensaje después de este');
+      // if (respondiendo[chatId]) {
+      //   respondiendo[chatId].previousMessage = messageCustomer
+      // }
+      res.status(200).end();
+    }
+
   } catch (error) {
     console.error('Error en webhook:', error);
     res.status(500).json({ error: 'Ocurrió un error' });
   }
 });
+
+// Función para calcular el tiempo de espera basado en palabras
+function calcularTiempoEscritura(texto) {
+  const palabras = texto.trim().split(/\s+/).length;
+
+  if (palabras <= 5) return Math.random() * 1.5 + 1.5; // 1.5-3 segundos
+  if (palabras <= 15) return Math.random() * 3 + 3;    // 3-6 segundos
+  if (palabras <= 30) return Math.random() * 4 + 5;    // 5-9 segundos
+  if (palabras <= 50) return Math.random() * 5 + 8;    // 8-13 segundos
+  if (palabras <= 80) return Math.random() * 6 + 12;   // 12-18 segundos
+  if (palabras <= 120) return Math.random() * 8 + 17;  // 17-25 segundos
+  return Math.random() * 10 + 25;                     // 25-35 segundos
+}
+
+// Función para esperar un tiempo determinado
+function esperar(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // Función para transcribir audio a texto usando OpenAI
 async function transcribeAudio(filePath) {

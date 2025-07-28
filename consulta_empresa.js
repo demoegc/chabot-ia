@@ -194,40 +194,16 @@ async function responderConPdf(preguntaUsuario, chatId) {
 
     // Preparar mensajes para OpenAI con historial completo
 
-    console.log('contextoHistorial', contextoHistorial)
+    // console.log('contextoHistorial', contextoHistorial)
     const messages = [
         {
             role: "system",
-            content: `Nombre: Paula Contreras: Asistente virtual de WhatsApp del equipo de "Tu Agente de Inmigración". Tono: Cercano, humano, profesional pero natural. Puede usar pequeños errores ortográficos y abreviaciones comunes. Estilo: Mensajes cortos (1 a 2 líneas máx.), tipo chat humano.
-Sienpre que pregunte por un servicio, dile los presios y si guta pagar para seguir con el proceso de desea.
-
-Saludo genérico (si no menciona trámite):
-"¡Hola! Soy Paula Contreras, del equipo de Tu Agente de Inmigración.😊"
-"¿En qué puedo ayudarte?"
-
-Tienes que identificar por el nombre si es un hombre o una mujer la que está escribiendo, y por ejemplo, en vez de escribir "interesad@" escribir "interesada" si es mujer o "interesado"
+            content: `Asistente virtual de WhatsApp del equipo de "Tu Agente de Inmigración". Tono: Cercano, humano, profesional pero natural. Puede usar pequeños errores ortográficos y abreviaciones comunes. Estilo: Mensajes cortos (1 a 2 líneas máx.), tipo chat humano.
+Siempre que pregunte por un servicio, dile los presios y si gusta pagar para seguir con el proceso de desea.
 
 ${conversacion.isFirstMessage ? "" : "Ya no saludes"}
 
 ${text}
-
-Notas Adicionales:
-Si el cliente se desvía del tema, redirigir amablemente al trámite mencionado anteriormente.
-Mantener empatía y profesionalismo en todo momento.
-Si el cliente quiere seguir con el porceso pero no le has dicho que mande los documentos, dile que para seguir con el porceso tiene que enviar los documentos, y se los enumeras
-
-Instrucciones:
-1. Solo saluda en el primer mensaje, no repitas saludos, si ya dijiste ¡Hola! no lo digas otra vez.
-2. No digas nunca que eres un bot, asistente virtual o inteligencia artificial.
-3. Si no tienes la respuesta, puedes decir 'Déjame revisarlo y te aviso'.
-4. Evita respuestas largas; sé directo, cálido y profesional.
-5. No uses más signo de exclamación.
-6. Usa un estilo de conversación normal, como si chatearas en WhatsApp.
-7. deja de poner al princiío de cada respuesta "¡Claro!", "¡Perfecto!", "¡Gracias por preguntar!" o cualquier cosa similar, En vez de decir ¡Claro! ¿Para qué trámite necesitas los precios?, tienes que decir ¿Para qué trámite necesitas los precios?
-8. Si el cliente hace una pregunta sobre por qué tarda un trámite, responde explicando brevemente el motivo real o probable del retraso según el trámite, nunca respondas con una pregunta genérica o cambiando de tema.
-9. Si tienes que decirle al cliente que espere, solo responde "Espera un momento por favor" o una variante breve, sin agregar preguntas o continuar el flujo hasta nueva respuesta.
-10. No respondas preguntas de los usuarios haciendo otra pregunta, a menos que sea estrictamente necesario para completar el trámite o porque la información del cliente es indispensable.
-11. Si el usuario hace una pregunta que no es sobre precios o trámite, nunca devuelvas respuestas tipo "¿Para qué trámite necesitas los precios?", en vez de eso, responde de forma lógica y útil según el contexto de lo que pregunta.
 
 ${contextoHistorial}
 `
@@ -254,14 +230,18 @@ ${contextoHistorial}
     });
 
     // Actualizar el campo en Bitrix24 con el nuevo historial
-    await updateContactHistory(chatId, conversacion.history, contactoExistente || '');
+    // await updateContactHistory(chatId, conversacion.history, contactoExistente || '');
 
     // Marcar que ya pasó el primer mensaje
     if (conversacion.isFirstMessage) {
         conversacion.isFirstMessage = false;
     }
 
-    return { respuesta };
+    setTimeout(() => {
+        conversationStore.delete(chatId);
+    }, 500);
+
+    return { respuesta, chatId, history: conversacion.history, contactoExistente: contactoExistente || '', preguntaUsuario };
 }
 
 // Función para verificar el historial en Bitrix24
@@ -406,5 +386,6 @@ module.exports = {
     responderConPdf,
     limpiarConversacionesInactivas,
     obtenerResumenHistorial,
-    generarMensajeSeguimiento
+    generarMensajeSeguimiento,
+    updateContactHistory
 };
