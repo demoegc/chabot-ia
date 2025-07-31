@@ -24,7 +24,7 @@ const BITRIX24_LIST_VALUE = process.env.BITRIX24_LIST_VALUE || '2223'; // Yes
 const BITRIX24_ADMIN_VALUE = process.env.BITRIX24_ADMIN_VALUE || '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
-  return res.json({ message: 'Última cambio manual del servidor el día 28/07/2025 17:31', IA: OPENAI_API_KEY })
+  return res.json({ message: 'Última cambio manual del servidor el día 31/07/2025 16:46' })
 })
 
 app.get('/send-message', async (req, res) => {
@@ -79,7 +79,7 @@ app.post('/webhook', async (req, res) => {
     respondiendo[chatId].identificador = identificador;
     respondiendo[chatId].count += 1
 
-    if (chatId !== '19545480212') {
+    if (chatId !== '19545480212' && chatId !== '584129253568') {
       console.log('chatId', chatId, 'Es diferente a 19545480212')
       delete respondiendo[chatId]
       return res.end()
@@ -207,7 +207,7 @@ app.post('/webhook', async (req, res) => {
 
     if (respondiendo[chatId]?.identificador === idRuta) {
       // Enviar respuesta
-      // await sendMessage(respuesta, chatId)
+      await sendMessage(respuesta, chatId)
       updateContactHistory(chatId, history, contactoExistente)
       console.log(respuesta)
 
