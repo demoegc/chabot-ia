@@ -24,7 +24,7 @@ const BITRIX24_LIST_VALUE = process.env.BITRIX24_LIST_VALUE || '2223'; // Yes
 const BITRIX24_ADMIN_VALUE = process.env.BITRIX24_ADMIN_VALUE || '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
-  return res.json({ message: 'Última cambio manual del servidor el día 28/07/2025 17:31' })
+  return res.json({ message: 'Última cambio manual del servidor el día 28/07/2025 17:31', IA: OPENAI_API_KEY })
 })
 
 app.get('/send-message', async (req, res) => {
