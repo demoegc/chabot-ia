@@ -363,7 +363,8 @@ ${historialCompleto}
 Resumen profesional:`;
 
         const resumenResponse = await openai.chat.completions.create({
-            model: "gpt-4o",
+            // model: "gpt-4o",
+            model: "chatgpt-4o",
             messages: [{
                 role: "system",
                 content: "Eres un asistente experto en resumir conversaciones de inmigración. Proporciona un resumen claro y conciso."
