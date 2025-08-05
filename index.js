@@ -207,9 +207,19 @@ app.post('/webhook', async (req, res) => {
 
     if (respondiendo[chatId]?.identificador === idRuta) {
       // Enviar respuesta
-      await sendMessage(respuesta, chatId)
-      updateContactHistory(chatId, history, contactoExistente)
-      console.log(respuesta)
+      let phoneNumber;
+      if (chatId == '19545480212') phoneNumber = '19545480212';
+      if (chatId == '584129253568') phoneNumber = '584129253568';
+
+      if (phoneNumber) {
+        
+        await sendMessage(respuesta, phoneNumber)
+        updateContactHistory(phoneNumber, history, contactoExistente)
+        console.log(respuesta)
+      }
+      else {
+        console.log('No se pudo enviar el mensaje, phoneNumber no definido');
+      }
 
       // Crear nuevo contacto en Bitrix24 (si no existe)
       if (shouldRespond === 'create') {
