@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { OpenAI } = require("openai");
 const text = require('./utils/text.js');
+const moment = require('moment-timezone');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const BITRIX24_API_URL = process.env.BITRIX24_API_URL;
@@ -192,13 +193,15 @@ async function responderConPdf(preguntaUsuario, chatId) {
         contextoHistorial = contactoExistente; // Usar el historial recuperado de Bitrix24
     }
 
-    // Preparar mensajes para OpenAI con historial completo
+    // Hora actual en UTC-4
+    const dateInTimeZone = moment.tz("America/Caracas").format();
 
     // console.log('contextoHistorial', contextoHistorial)
     const messages = [
         {
             role: "system",
-            content: `Asistente virtual de WhatsApp del equipo de "Tu Agente de Inmigración". Tono: Cercano, humano, profesional pero natural. Puede usar pequeños errores ortográficos y abreviaciones comunes. Estilo: Mensajes cortos (1 a 2 líneas máx.), tipo chat humano.
+            content: `Hora actual ${dateInTimeZone}\n
+Asistente virtual de WhatsApp del equipo de "Tu Agente de Inmigración". Tono: Cercano, humano, profesional pero natural. Puede usar pequeños errores ortográficos y abreviaciones comunes. Estilo: Mensajes cortos (1 a 2 líneas máx.), tipo chat humano.
 Siempre que pregunte por un servicio, dile los presios y si gusta pagar para seguir con el proceso de desea.
 
 ${conversacion.isFirstMessage ? "" : "Ya no saludes"}
@@ -303,6 +306,8 @@ async function updateContactHistory(chatId, history, contactoExistente) {
             fields: updateData
         });
 
+        return contactId;
+
         console.log(`Historial actualizado correctamente en el contacto con ID: ${contactId}`);
     } catch (error) {
         console.error("Error al actualizar el historial en Bitrix24:", error.message);
@@ -329,7 +334,7 @@ async function obtenerResumenHistorial(chatId) {
         // Obtener historial local y de Bitrix24 (igual que antes)
         const conversacionLocal = conversationStore.get(chatId);
         let historialCompleto = '';
-        
+
         if (conversacionLocal && conversacionLocal.history.length > 0) {
             historialCompleto = conversacionLocal.history.map(interaccion => {
                 return `Cliente: ${interaccion.pregunta}\nAsistente: ${interaccion.respuesta}`;

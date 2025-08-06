@@ -206,7 +206,6 @@ app.post('/webhook', async (req, res) => {
     await esperar(tiempoEspera * 1000);
 
     if (respondiendo[chatId]?.identificador === idRuta) {
-      // Enviar respuesta
       let phoneNumber;
       if (chatId == '19545480212') phoneNumber = '19545480212';
       if (chatId == '584129253568') phoneNumber = '584129253568';
@@ -214,8 +213,44 @@ app.post('/webhook', async (req, res) => {
       if (phoneNumber) {
         
         await sendMessage(respuesta, phoneNumber)
-        updateContactHistory(phoneNumber, history, contactoExistente)
-        console.log(respuesta)
+        let contactoId = await updateContactHistory(phoneNumber, history, contactoExistente)
+        if(contactoId && (respuesta == 'Espera un momento por favor.' || respuesta == 'Dame un momento mientras busco el estado de tu trámite.' || respuesta == 'Dame un momento mientras busco el estado de tu tramite.')) {
+          const reponseContact = await axios.get(`https://demo-egconnects.bitrix24.com/rest/221/t9a366b47rs3tas0/crm.deal.list.json?filter[CONTACT_ID]=${contactoId}`)
+          if(reponseContact.data.result.length > 0) {
+            let deal = reponseContact.data.result[0]
+            if(deal.STAGE_ID == 'C27:NEW') {
+              await sendMessage('Tu trámite está en Pendiente por asignar', phoneNumber)
+            }
+            else if(deal.STAGE_ID == 'C27:PREPARATION') {
+              await sendMessage('Tu trámite está en Firma Términos y Condiciones', phoneNumber)
+            }
+            else if(deal.STAGE_ID == 'C27:PREPAYMENT_INVOIC') {
+              await sendMessage('Tu trámite está en Envío de cuestionario', phoneNumber)
+            }
+            else if(deal.STAGE_ID == 'C27:EXECUTING') {
+              await sendMessage('Tu trámite está en Confirmación cuestionario', phoneNumber)
+            }
+            else if(deal.STAGE_ID == 'C27:FINAL_INVOICE') {
+              await sendMessage('Tu trámite está en Recopilación de documentos e historia', phoneNumber)
+            }
+            else if(deal.STAGE_ID == 'C27:UC_593QCO') {
+              await sendMessage('Tu trámite está en Traducción de documentos', phoneNumber)
+            }
+            else if(deal.STAGE_ID == 'C27:UC_2PYKKQ') {
+              await sendMessage('Tu trámite está en Preparación de la solicitud', phoneNumber)
+            }
+            else if(deal.STAGE_ID == 'C27:UC_183NOX') {
+              await sendMessage('Tu trámite está en Cobro de abono intermedio', phoneNumber)
+            }
+            else if(deal.STAGE_ID == 'C27:WON') {
+              await sendMessage('Tu trámite está finalizado', phoneNumber)
+            }
+          }
+          else {
+              await sendMessage('Actualmente no tienes ningún trámite pendiente', phoneNumber)
+          }
+        }
+        console.log('respuesta', respuesta)
       }
       else {
         console.log('No se pudo enviar el mensaje, phoneNumber no definido');
