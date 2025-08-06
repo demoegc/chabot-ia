@@ -170,11 +170,11 @@ app.post('/webhook', async (req, res) => {
     const shouldRespond = await checkContactAndFieldValue(chatId);
     console.log('shouldRespond', shouldRespond)
 
-    if (!shouldRespond) {
-      console.log(`No se responderá al contacto ${chatId} (el campo no tiene el valor requerido o el contacto no existe)`);
-      delete respondiendo[chatId]
-      return res.status(200).end();
-    }
+    // if (!shouldRespond) {
+    //   console.log(`No se responderá al contacto ${chatId} (el campo no tiene el valor requerido o el contacto no existe)`);
+    //   delete respondiendo[chatId]
+    //   return res.status(200).end();
+    // }
 
     let aux = true
     let count = 0
@@ -214,10 +214,11 @@ app.post('/webhook', async (req, res) => {
         
         await sendMessage(respuesta, phoneNumber)
         let contactoId = await updateContactHistory(phoneNumber, history, contactoExistente)
-        if(contactoId && (respuesta == 'Espera un momento por favor.' || respuesta == 'Dame un momento mientras busco el estado de tu trámite.' || respuesta == 'Dame un momento mientras busco el estado de tu tramite.')) {
-          const reponseContact = await axios.get(`https://tuagentedeinmigracion.bitrix24.co/rest/8659/vdy3s0ijju2t1e59/crm.deal.list.json?filter[CONTACT_ID]=${contactoId}`)
+        if(contactoId && (respuesta == 'Espera un momento por favor.' || respuesta == 'Dame un momento mientras busco el estado de tu trámite.' || respuesta == 'Dame un momento mientras busco el estado de tu tramite.' || respuesta == 'Espera un momento por favor. Voy a buscar el estado de tu trámite.')) {
+          const reponseContact = await axios.get(`${BITRIX24_API_URL}crm.deal.list.json?filter[CONTACT_ID]=${contactoId}`)
           if(reponseContact.data.result.length > 0) {
             let deal = reponseContact.data.result[0]
+            console.log('deal.STAGE_ID', deal.STAGE_ID)
             if(deal.STAGE_ID == 'C27:NEW') {
               await sendMessage('Tu trámite está en Pendiente por asignar', phoneNumber)
             }
