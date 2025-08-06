@@ -214,7 +214,7 @@ app.post('/webhook', async (req, res) => {
         
         await sendMessage(respuesta, phoneNumber)
         let contactoId = await updateContactHistory(phoneNumber, history, contactoExistente)
-        if(contactoId && (respuesta == 'Espera un momento por favor.' || respuesta == 'Dame un momento mientras busco el estado de tu trámite.' || respuesta == 'Dame un momento mientras busco el estado de tu tramite.' || respuesta == 'Espera un momento mientras busco el estado de tu tramite.' || respuesta == 'Espera un momento por favor. Voy a buscar el estado de tu trámite.')) {
+        if(contactoId && (respuesta == 'Espera un momento por favor.' || respuesta == 'Dame un momento mientras busco el estado de tu trámite.' || respuesta == 'Dame un momento mientras busco el estado de tu tramite.' || respuesta == 'Espera un momento por favor mientras busco el estado de tu trámite.' || respuesta == 'Espera un momento por favor. Voy a buscar el estado de tu trámite.')) {
           const reponseContact = await axios.get(`${BITRIX24_API_URL}crm.deal.list.json?filter[CONTACT_ID]=${contactoId}`)
           if(reponseContact.data.result.length > 0) {
             let deal = reponseContact.data.result[0]
