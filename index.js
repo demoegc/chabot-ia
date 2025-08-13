@@ -223,7 +223,7 @@ app.post('/webhook', async (req, res) => {
       if (chatId == '584129253568') phoneNumber = '584129253568';
 
       if (phoneNumber) {
-        
+
         await sendMessage(respuesta, phoneNumber)
         updateContactHistory(phoneNumber, history, historialBitrix)
         console.log('respuesta', respuesta)
@@ -299,7 +299,7 @@ async function checkContactAndFieldValue(phoneNumber) {
   try {
     // Primero buscar en Leads
     const leadResponse = await axios.get(
-      `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID`
+      `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
     );
 
     // Si encontramos leads, verificar el campo en el lead o su contacto asociado
@@ -311,7 +311,8 @@ async function checkContactAndFieldValue(phoneNumber) {
         await axios.post(`${BITRIX24_API_URL}crm.lead.update`, {
           id: lead.ID,
           fields: {
-            ASSIGNED_BY_ID: 8659
+            "ASSIGNED_BY_ID": lead.UF_CRM_1755093738 || lead.ASSIGNED_BY_ID,
+            "STATUS_ID": "UC_11XRR5"
           }
         })
         console.log('Se le transfirió a un agente')
