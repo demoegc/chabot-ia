@@ -8,7 +8,11 @@ const moment = require('moment-timezone');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const BITRIX24_API_URL = process.env.BITRIX24_API_URL;
+// const BITRIX24_HISTORIAL_FIELD = process.env.BITRIX24_HISTORIAL_FIELD || "UF_CRM_1752177274"
 const BITRIX24_HISTORIAL_FIELD = "UF_CRM_1752177274"
+
+// Almacén de conversaciones por chatId
+const conversationStore = new Map();
 
 // Función para calcular similitud coseno
 function similitudCoseno(a, b) {
@@ -42,12 +46,32 @@ async function recuperarFragments(pregunta, topK = 3) {
 
 async function generarMensajeSeguimiento(chatId) {
     try {
-        // Obtener historial directamente de Bitrix24
-        let { historial: historialBitrix, resumenHistorial } = await checkContactHistory(chatId, true);
+        // Obtener historial de conversación (local o de Bitrix24)
+        let historial = '';
+        let contactoExistente = '';
 
-        if (!historialBitrix) {
+        // 1. Verificar historial local
+        if (conversationStore.has(chatId)) {
+            const conversacion = conversationStore.get(chatId);
+            if (conversacion.history.length > 0) {
+                historial = conversacion.history.map(interaccion => {
+                    return `Cliente: ${interaccion.pregunta}\nAsistente: ${interaccion.respuesta}`;
+                }).join('\n\n');
+            }
+        }
+
+        // 2. Buscar historial en Bitrix24 si no hay suficiente contexto local
+        let { historial: hist, resumenHistorial } = await checkContactHistory(chatId, obtenerResumen = true);
+        contactoExistente = hist;
+        if (!historial && contactoExistente) {
+            historial = contactoExistente;
+        }
+
+        // 3. Si no hay historial en absoluto
+        if (!historial) {
             const mensajeDefault = "Hola, ¿en qué puedo ayudarte hoy?";
-            await registrarSeguimientoEnBitrix(chatId, mensajeDefault, '');
+            // Guardar en Bitrix24 incluso el mensaje por defecto
+            await registrarSeguimientoEnBitrix(chatId, mensajeDefault, contactoExistente || '');
             return { respuesta: mensajeDefault };
         }
 
@@ -122,8 +146,17 @@ Mensaje de seguimiento:`;
 
         const mensajeSeguimiento = response.choices[0].message.content;
 
-        // Registrar el seguimiento en Bitrix24
-        await registrarSeguimientoEnBitrix(chatId, mensajeSeguimiento, historialBitrix);
+        // 5. Registrar el seguimiento en Bitrix24
+        await registrarSeguimientoEnBitrix(chatId, mensajeSeguimiento, contactoExistente || '');
+
+        // 6. Actualizar historial local si existe
+        if (conversationStore.has(chatId)) {
+            const conversacion = conversationStore.get(chatId);
+            conversacion.history.push({
+                pregunta: "[SISTEMA] Mensaje de seguimiento automático",
+                respuesta: mensajeSeguimiento
+            });
+        }
 
         return { respuesta: mensajeSeguimiento };
 
@@ -135,6 +168,8 @@ Mensaje de seguimiento:`;
     }
 }
 
+
+// Función auxiliar para registrar seguimientos en Bitrix24
 async function registrarSeguimientoEnBitrix(chatId, mensaje, historialExistente) {
     try {
         // 1. Primero buscar en Leads
@@ -164,6 +199,21 @@ async function registrarSeguimientoEnBitrix(chatId, mensaje, historialExistente)
                     entityType = 'contact';
                 }
             }
+        } else {
+            // 2. Si no hay leads, buscar directamente en contactos
+            // const contactResponse = await axios.get(
+            //     `${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=${BITRIX24_HISTORIAL_FIELD}`
+            // );
+
+            // if (!contactResponse.data.result || contactResponse.data.result.length === 0) {
+            //     console.log(`No se encontró lead ni contacto con número ${chatId} para registrar seguimiento`);
+            //     return;
+            // }
+
+            // entityId = contactResponse.data.result[0].ID;
+            // existingHistory = contactResponse.data.result[0][BITRIX24_HISTORIAL_FIELD] || existingHistory;
+            // isContact = true;
+            // entityType = 'contact';
         }
 
         // Preparar el mensaje de seguimiento
@@ -198,11 +248,29 @@ async function registrarSeguimientoEnBitrix(chatId, mensaje, historialExistente)
 }
 
 async function responderConPdf(preguntaUsuario, chatId) {
-    // Obtener historial directamente de Bitrix24
-    const historialBitrix = await checkContactHistory(chatId);
+    // Inicializar o recuperar el historial de conversación
+    if (!conversationStore.has(chatId)) {
+        conversationStore.set(chatId, {
+            history: [],
+            isFirstMessage: true
+        });
+    }
+
+    const conversacion = conversationStore.get(chatId);
 
     // Recuperar fragments relevantes
     const topFragments = await recuperarFragments(preguntaUsuario, 3);
+
+    // Construir contexto con historial
+    let contextoHistorial = "";
+    if (conversacion.history.length > 0) {
+        contextoHistorial = "Historial de esta conversación:\n";
+        conversacion.history.forEach((interaccion, idx) => {
+            contextoHistorial += `[Turno ${idx + 1}]\n`;
+            contextoHistorial += `Cliente: ${interaccion.pregunta}\n`;
+            contextoHistorial += `Tú: ${interaccion.respuesta}\n\n`;
+        });
+    }
 
     // Construir contexto con fragments
     let contextoDocumento = "Información relevante:\n";
@@ -210,9 +278,16 @@ async function responderConPdf(preguntaUsuario, chatId) {
         contextoDocumento += `--- Fragmento ${idx + 1} ---\n${fragmento.texto}\n\n`;
     });
 
+    // Verificar si existe un historial de conversación en Bitrix24
+    const contactoExistente = await checkContactHistory(chatId);
+    if (contactoExistente) {
+        contextoHistorial = contactoExistente; // Usar el historial recuperado de Bitrix24
+    }
+
     // Hora actual en UTC-4
     const dateInTimeZone = moment.tz("America/Caracas").format();
 
+    // console.log('contextoHistorial', contextoHistorial)
     const messages = [
         {
             role: "system",
@@ -220,11 +295,13 @@ async function responderConPdf(preguntaUsuario, chatId) {
 Asistente virtual de WhatsApp del equipo de "Tu Agente de Inmigración". Tono: Cercano, humano, profesional pero natural. Puede usar pequeños errores ortográficos y abreviaciones comunes. Estilo: Mensajes cortos (1 a 2 líneas máx.), tipo chat humano.
 Siempre que pregunte por un servicio, dile los presios y si gusta pagar para seguir con el proceso de desea.
 
+${conversacion.isFirstMessage ? "" : "Ya no saludes"}
+
 ${text}
 
-${historialBitrix ? historialBitrix : ''}
+${contextoHistorial}
 
-${historialBitrix !== '' ? 'Estudia el historial y responde en base a lo que ya se ha hablado con el cliente' : ''}
+${contextoHistorial !== '' ? 'Estudia el historial y responde en base a lo que ya se ha hablado con el cliente' : ''}
 `
         },
         {
@@ -243,42 +320,47 @@ ${historialBitrix !== '' ? 'Estudia el historial y responde en base a lo que ya 
     const respuesta = completion.choices[0].message.content;
 
     // Verificar si la respuesta indica una transferencia a agente
-    const transferenciaDetectada = await verificarTransferenciaAgente(chatId, respuesta, historialBitrix);
+    const transferenciaDetectada = await verificarTransferenciaAgente(chatId, respuesta, conversacion.history);
     console.log('transferenciaDetectada', transferenciaDetectada)
 
-    if (transferenciaDetectada) {
+    // Actualizar historial
+    conversacion.history.push({
+        pregunta: preguntaUsuario,
+        respuesta: respuesta
+    });
 
-        const [responseResumen, responseNotif] = await Promise.all([obtenerResumenHistorial(chatId, historialBitrix), notificarTransferenciaAgente(chatId, respuesta)])
+    // Actualizar el campo en Bitrix24 con el nuevo historial
+    // await updateContactHistory(chatId, conversacion.history, contactoExistente || '');
 
-        await updateLeadField(chatId, responseResumen)
+    // Marcar que ya pasó el primer mensaje
+    if (conversacion.isFirstMessage) {
+        conversacion.isFirstMessage = false;
     }
 
-    // Actualizar el historial en Bitrix24
-    // await updateContactHistory(chatId, [{ pregunta: preguntaUsuario, respuesta }], historialBitrix || '');
+    setTimeout(() => {
+        conversationStore.delete(chatId);
+    }, 500);
 
-    return { respuesta, chatId, preguntaUsuario, history: [{ pregunta: preguntaUsuario, respuesta }], historialBitrix };
+    return { respuesta, chatId, history: conversacion.history, contactoExistente: contactoExistente || '', preguntaUsuario };
 }
 
+// Función para verificar si la respuesta indica transferencia a agente
 async function verificarTransferenciaAgente(chatId, ultimaRespuesta, historialConversacion) {
     try {
         const prompt = `Analiza el siguiente mensaje y determina si indica que el cliente será transferido a un agente humano. 
 Responde solo con "SI" o "NO".
-Si el cliente quiere hacer el pago también tienes que decir "SI".
-Cuando el mensaje a analizar diga que va a ser transferido con un agente afirmativamente, puedes decir "SI". Si lo hace en forma de pregunta como: "puedo agendarte con un asesor experto para avanzar con este paso. ¿Te gustaría que lo haga ahora?" tienes que responder "NO", y si el cliente quiere abanzar con el proceso, también debes decir "SI".
-Si de habla de pago debes decir "SI".
-Si ya se le dijo al cliente cuando le gustaría que lo contacten, y el cliente ya respondió, también debes responder "SI"
 
 Mensaje a analizar:
 "${ultimaRespuesta}"
 
 Contexto de conversación:
-${historialConversacion}`;
+${historialConversacion.map(i => `${i.pregunta}\n${i.respuesta}`).join('\n\n')}`;
 
         const response = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [{
                 role: "system",
-                content: 'Eres un asistente que solo responde con SI o NO, indicando si el mensaje significa que el cliente será transferido a un agente humano.'
+                content: 'Eres un asistente que solo responde con SI o NO, indicando si el mensaje significa que el cliente será transferido a un agente humano. Cuando el mensaje a analizar diga que va a ser transferido con un agente afirmativamente, puedes decir "SI". Si lo hace en forma de pregunta como: "puedo agendarte con un asesor experto para avanzar con este paso. ¿Te gustaría que lo haga ahora?" tienes que responder "NO"'
             }, {
                 role: "user",
                 content: prompt
@@ -287,8 +369,6 @@ ${historialConversacion}`;
             max_tokens: 2
         });
 
-        console.log('verificarTransferenciaAgente', response.choices[0].message.content.trim().toUpperCase())
-
         return response.choices[0].message.content.trim().toUpperCase() === "SI";
     } catch (error) {
         console.error("Error al verificar transferencia a agente:", error);
@@ -296,11 +376,12 @@ ${historialConversacion}`;
     }
 }
 
+// Función para notificar a Bitrix24 sobre la transferencia
 async function notificarTransferenciaAgente(chatId, mensajeTransferencia) {
     try {
         // 1. Obtener información del contacto/lead
         const leadResponse = await axios.get(
-            `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=ASSIGNED_BY_ID&SELECT[]=UF_CRM_1755093738`
+            `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=ASSIGNED_BY_ID`
         );
 
         let entityId, isContact = false, assignedTo;
@@ -308,19 +389,19 @@ async function notificarTransferenciaAgente(chatId, mensajeTransferencia) {
         if (leadResponse.data.result && leadResponse.data.result.length > 0) {
             const lead = leadResponse.data.result[leadResponse.data.result.length - 1];
             entityId = lead.ID;
-            assignedTo = lead.UF_CRM_1755093738 || lead.ASSIGNED_BY_ID;
+            assignedTo = lead.ASSIGNED_BY_ID;
 
-            // if (lead.CONTACT_ID && lead.CONTACT_ID !== '0') {
-            //     const contactResponse = await axios.get(
-            //         `${BITRIX24_API_URL}crm.contact.get?id=${lead.CONTACT_ID}&SELECT[]=ASSIGNED_BY_ID`
-            //     );
+            if (lead.CONTACT_ID && lead.CONTACT_ID !== '0') {
+                const contactResponse = await axios.get(
+                    `${BITRIX24_API_URL}crm.contact.get?id=${lead.CONTACT_ID}&SELECT[]=ASSIGNED_BY_ID`
+                );
 
-            //     if (contactResponse.data.result) {
-            //         entityId = contactResponse.data.result.ID;
-            //         assignedTo = contactResponse.data.result.ASSIGNED_BY_ID;
-            //         isContact = true;
-            //     }
-            // }
+                if (contactResponse.data.result) {
+                    entityId = contactResponse.data.result.ID;
+                    assignedTo = contactResponse.data.result.ASSIGNED_BY_ID;
+                    isContact = true;
+                }
+            }
         }
 
         if (!assignedTo) {
@@ -329,7 +410,8 @@ async function notificarTransferenciaAgente(chatId, mensajeTransferencia) {
         }
 
         // 2. Crear notificación en Bitrix24
-        const notificationText = `El cliente con número ${chatId} se te ha transferido.`;
+        const notificationText = `El cliente con número ${chatId} ha sido transferido al agente. 
+Mensaje de transferencia: ${mensajeTransferencia.replace(/[\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')}`;
 
         await axios.post(`${BITRIX24_API_URL}im.notify`, {
             to: assignedTo,
@@ -343,55 +425,8 @@ async function notificarTransferenciaAgente(chatId, mensajeTransferencia) {
     }
 }
 
-async function updateLeadField(phoneNumber, resumenHistorial) {
-    try {
-        // Primero obtener el ID del lead
-        const response = await axios.get(`${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=UF_CRM_1752006453&SELECT[]=ASSIGNED_BY_ID`);
-
-        if (!response.data.result || response.data.result.length === 0) {
-            console.log(`No se encontró lead con número ${phoneNumber}`);
-            return null;
-        }
-
-        const leadId = response.data.result[response.data.result.length-1].ID;
-        const responsible = response.data.result[response.data.result.length-1].ASSIGNED_BY_ID;
-        const respondiendoChatbot = response.data.result[response.data.result.length-1].UF_CRM_1752006453;
-
-        if(respondiendoChatbot != '2709') {
-            return null
-        }
-
-        const leadUpdateData = {
-            id: leadId,
-            fields: {
-                "UF_CRM_1752006453": 2711,
-                "STATUS_ID": "UC_11XRR5"
-            }
-        };
-
-        const commentData = {
-            fields: {
-                "ENTITY_ID": leadId,
-                "ENTITY_TYPE": "lead",
-                "COMMENT": resumenHistorial,
-                "AUTHOR_ID": responsible, // ID del usuario que realiza la acción
-            }
-        };
-
-        const [updateResponse, commentResponse] = await Promise.all([
-            axios.post(`${BITRIX24_API_URL}crm.lead.update`, leadUpdateData),
-            axios.post(`${BITRIX24_API_URL}crm.timeline.comment.add`, commentData)
-        ]);
-
-        console.log(`🔄 Lead ${leadId} actualizado. Campo UF_CRM_1752006453 establecido a 2711`);
-        return updateResponse.data.result;
-    } catch (error) {
-        console.error('Error al actualizar lead en Bitrix24:', error.response?.data || error.message);
-        throw error;
-    }
-}
-
-async function checkContactHistory(chatId, obtenerResumen = false) {
+// Función para verificar el historial en Bitrix24
+async function checkContactHistory(chatId, obtenerResumen) {
     try {
         // 1. Primero buscar en Leads
         const leadResponse = await axios.get(
@@ -431,6 +466,22 @@ async function checkContactHistory(chatId, obtenerResumen = false) {
             return lead[BITRIX24_HISTORIAL_FIELD] || '';
         }
 
+        // 2. Si no encontramos leads, buscar directamente en contactos
+        // const contactResponse = await axios.get(
+        //     `${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=${BITRIX24_HISTORIAL_FIELD}&SELECT[]=UF_CRM_1754666415`
+        // );
+
+        // if (contactResponse.data.result && contactResponse.data.result.length > 0) {
+        //     if (obtenerResumen) {
+        //         return { 
+        //             historial: contactResponse.data.result[0][BITRIX24_HISTORIAL_FIELD] || '',
+        //             resumenHistorial: contactResponse.data.result[0]['UF_CRM_1754666415'] || '',
+        //             entityType: 'contact'
+        //         };
+        //     }
+        //     return contactResponse.data.result[0][BITRIX24_HISTORIAL_FIELD] || '';
+        // }
+
     } catch (error) {
         console.error("Error al verificar el historial en Bitrix24:", error.message);
     }
@@ -442,30 +493,44 @@ async function checkContactHistory(chatId, obtenerResumen = false) {
     return '';
 }
 
+// Función para actualizar el historial en Bitrix24
 async function updateContactHistory(chatId, history, historialExistente) {
     try {
         // Primero buscar el Lead que contenga este número de teléfono
         const leadResponse = await axios.get(`${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_HISTORIAL_FIELD}`);
 
         let entityId, leadId, isContact = false, entityType = 'lead';
-        let existingHistory = historialExistente || '';
+        let existingHistory = '';
 
-        if (leadResponse.data.result && leadResponse.data.result.length > 0) {
+        if (leadResponse.data.result.length > 0) {
             const lead = leadResponse.data.result[leadResponse.data.result.length - 1];
             entityId = lead.ID;
             leadId = lead.ID;
-            existingHistory = lead[BITRIX24_HISTORIAL_FIELD] || existingHistory;
+            existingHistory = lead[BITRIX24_HISTORIAL_FIELD] || '';
 
             // Si el Lead tiene contacto asociado, usaremos el contacto en lugar del lead
             if (lead.CONTACT_ID && lead.CONTACT_ID !== '0') {
                 const contactResponse = await axios.get(`${BITRIX24_API_URL}crm.contact.get?id=${lead.CONTACT_ID}&SELECT[]=ID&SELECT[]=${BITRIX24_HISTORIAL_FIELD}`);
                 if (contactResponse.data.result) {
                     entityId = contactResponse.data.result.ID;
-                    existingHistory = contactResponse.data.result[BITRIX24_HISTORIAL_FIELD] || existingHistory;
+                    existingHistory = contactResponse.data.result[BITRIX24_HISTORIAL_FIELD] || '';
                     isContact = true;
                     entityType = 'contact';
                 }
             }
+        } else {
+            // Si no hay lead, buscar directamente en contactos
+            const contactResponse = await axios.get(`${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=${BITRIX24_HISTORIAL_FIELD}`);
+
+            if (contactResponse.data.result.length === 0) {
+                console.log(`No se encontró lead ni contacto con el número ${chatId}`);
+                return;
+            }
+
+            entityId = contactResponse.data.result[0].ID;
+            existingHistory = contactResponse.data.result[0][BITRIX24_HISTORIAL_FIELD] || '';
+            isContact = true;
+            entityType = 'contact';
         }
 
         // Crear el historial a partir de las interacciones y eliminar los emojis
@@ -487,7 +552,7 @@ async function updateContactHistory(chatId, history, historialExistente) {
 
         // Datos que se actualizarán en Bitrix24
         let updateData;
-        if (!existingHistory || existingHistory.length === 0) {
+        if (!historialExistente || historialExistente.length === 0) {
             // Si no hay historial existente, agregamos la hora de inicio
             updateData = {
                 [BITRIX24_HISTORIAL_FIELD]: horaInicio + historial.join('')
@@ -535,18 +600,51 @@ async function updateContactHistory(chatId, history, historialExistente) {
     }
 }
 
+
+
+// Limpiar conversaciones antiguas periódicamente (si aún es necesario)
+function limpiarConversacionesInactivas() {
+    const ahora = Date.now();
+    const UMBRAL_INACTIVIDAD = 30 * 60 * 1000; // 30 minutos
+
+    conversationStore.forEach((conversacion, chatId) => {
+        if (ahora - conversacion.ultimaInteraccion > UMBRAL_INACTIVIDAD) {
+            conversationStore.delete(chatId);
+        }
+    });
+}
+
+// Función para obtener resumen completo del historial de conversación
 async function obtenerResumenHistorial(chatId, historial) {
     try {
-        let historialCompleto = historial;
 
-        if (!historialCompleto) {
+        let historialCompleto = '';
+
+        if (!historial) {
+
+            // Obtener historial local y de Bitrix24 (igual que antes)
+            const conversacionLocal = conversationStore.get(chatId);
+
+            if (conversacionLocal && conversacionLocal.history.length > 0) {
+                historialCompleto = conversacionLocal.history.map(interaccion => {
+                    return `Cliente: ${interaccion.pregunta}\nAsistente: ${interaccion.respuesta}`;
+                }).join('\n\n');
+            }
+
+            // Obtener historial de Bitrix24
             const historialBitrix = await checkContactHistory(chatId);
-            historialCompleto = historialBitrix || '';
+            if (historialBitrix && historialBitrix.length > 0) {
+                historialCompleto += (historialCompleto ? '\n\n' : '') + historialBitrix;
+            }
+
+            if (!historialCompleto) {
+                return "No hay historial de conversación con este cliente.";
+            }
+        }
+        else {
+            historialCompleto = historial
         }
 
-        if (!historialCompleto) {
-            return "No hay historial de conversación con este cliente.";
-        }
 
         // Enviar a OpenAI para resumen
         const prompt = `Resume la siguiente conversación de WhatsApp con un cliente de inmigración, destacando:
@@ -586,8 +684,9 @@ Resumen profesional:`;
 
 const guardarResumenHistorial = async (entityId, resumenHistorial, isContact = true) => {
     try {
-        const contactField = 'UF_CRM_1754666415';
-        const leadField = 'UF_CRM_1754666415';
+        // Definir los campos específicos para cada tipo de entidad
+        const contactField = 'UF_CRM_1754666415'; // Campo de resumen para Contactos
+        const leadField = 'UF_CRM_1754666415';   // Campo de resumen para Leads (ajusta este ID)
 
         const endpoint = isContact
             ? `${BITRIX24_API_URL}crm.contact.update`
@@ -610,9 +709,9 @@ const guardarResumenHistorial = async (entityId, resumenHistorial, isContact = t
 
 module.exports = {
     responderConPdf,
+    limpiarConversacionesInactivas,
+    obtenerResumenHistorial,
     generarMensajeSeguimiento,
     updateContactHistory,
-    guardarResumenHistorial,
-    obtenerResumenHistorial,
-    updateLeadField
+    guardarResumenHistorial
 };

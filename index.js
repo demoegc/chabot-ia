@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 const axios = require("axios");
-const { responderConPdf, obtenerResumenHistorial, generarMensajeSeguimiento, updateContactHistory } = require("./consulta_empresa.js");
+const { responderConPdf, obtenerResumenHistorial, generarMensajeSeguimiento, updateContactHistory, updateLeadField } = require("./consulta_empresa.js");
 const sendMessage = require('./sendMessage.js')
 
 const app = express();
@@ -19,9 +19,12 @@ const OPENAI_API_URL = 'https://api.openai.com/v1/audio/transcriptions';
 
 // Configuración de Bitrix24
 const BITRIX24_API_URL = process.env.BITRIX24_API_URL;
-const BITRIX24_LIST_FIELD_ID = process.env.BITRIX24_LIST_FIELD_ID || 'UF_CRM_1752006453';
-const BITRIX24_LIST_VALUE = process.env.BITRIX24_LIST_VALUE || '2223'; // Yes
-const BITRIX24_ADMIN_VALUE = process.env.BITRIX24_ADMIN_VALUE || '2225'; // Valor para Admin
+// const BITRIX24_LIST_FIELD_ID = process.env.BITRIX24_LIST_FIELD_ID || 'UF_CRM_1752006453';
+// const BITRIX24_LIST_VALUE = process.env.BITRIX24_LIST_VALUE || '2223'; // Yes
+// const BITRIX24_ADMIN_VALUE = process.env.BITRIX24_ADMIN_VALUE || '2225'; // Valor para Admin
+const BITRIX24_LIST_FIELD_ID = 'UF_CRM_1752006453';
+const BITRIX24_LIST_VALUE = '2223'; // Yes
+const BITRIX24_ADMIN_VALUE = '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
   return res.json({ message: 'Última cambio manual del servidor el día 31/07/2025 16:46' })
@@ -38,15 +41,24 @@ app.post('/mensaje-recordatorio', async (req, res) => {
 
   const { phone } = req.query;
 
-  const chatId = phone.split(',')[0].trim();
+  console.log('phone', phone)
 
-  const { respuesta } = await generarMensajeSeguimiento(chatId);
+  try {
+    let chatId = phone.split(',')[0].trim();
 
-  // Enviar respuesta
-  console.log('sendMessage(respuesta, chatId)', respuesta, chatId)
-  await sendMessage(respuesta, chatId)
-  console.log(respuesta)
-  return res.json({ message: 'Mensaje de recordatorio enviado' })
+    chatId = chatId.replace(/\D/g, '');
+
+    const { respuesta } = await generarMensajeSeguimiento(chatId);
+
+    // Enviar respuesta
+    console.log('respuesta', respuesta)
+    console.log('chatId', chatId)
+    await sendMessage(respuesta, chatId)
+    return res.json({ message: 'Mensaje de recordatorio enviado' })
+
+  } catch (error) {
+    console.log(error)
+  }
 })
 
 let respondiendo = {}
@@ -71,7 +83,7 @@ app.post('/webhook', async (req, res) => {
     const { chatId, type, sentFromApp, authorName, authorId, status } = message;
 
     if (!respondiendo[chatId]) {
-      respondiendo[chatId] = {count: 0}
+      respondiendo[chatId] = { count: 0 }
     }
 
     let identificador = Date.now();
@@ -94,7 +106,7 @@ app.post('/webhook', async (req, res) => {
         console.log(resumenHistorial);
         console.log('\n' + '-'.repeat(50) + '\n');
 
-        await updateContactField(chatId, BITRIX24_LIST_FIELD_ID, BITRIX24_ADMIN_VALUE, resumenHistorial);
+        await updateLeadField(chatId, resumenHistorial);
       } catch (error) {
         console.error('Error al procesar mensaje de admin:', error);
       }
@@ -170,19 +182,19 @@ app.post('/webhook', async (req, res) => {
     const shouldRespond = await checkContactAndFieldValue(chatId);
     console.log('shouldRespond', shouldRespond)
 
-    // if (!shouldRespond) {
-    //   console.log(`No se responderá al contacto ${chatId} (el campo no tiene el valor requerido o el contacto no existe)`);
-    //   delete respondiendo[chatId]
-    //   return res.status(200).end();
-    // }
+    if (!shouldRespond) {
+      console.log(`No se responderá al contacto ${chatId} (el campo no tiene el valor requerido o el contacto no existe)`);
+      delete respondiendo[chatId]
+      return res.status(200).end();
+    }
 
     let aux = true
     let count = 0
     while (aux && count < 10 && respondiendo[chatId].count > 1) {
       console.log('entró al while')
 
-      console.log('respondiendo[chatId].previousMessage', respondiendo[chatId].previousMessage)
-      if(respondiendo[chatId]?.previousMessage) {
+      // console.log('respondiendo[chatId].previousMessage', respondiendo[chatId].previousMessage)
+      if (respondiendo[chatId]?.previousMessage) {
         aux = false
         messageCustomer = respondiendo[chatId]?.previousMessage + '\n' + messageCustomer;
       }
@@ -194,7 +206,7 @@ app.post('/webhook', async (req, res) => {
 
     // Procesar mensaje solo si se debe responder
     console.log('messageCustomer', messageCustomer)
-    const { respuesta, history, contactoExistente, preguntaUsuario } = await responderConPdf(messageCustomer, chatId);
+    const { respuesta, history, historialBitrix, contactoExistente, preguntaUsuario } = await responderConPdf(messageCustomer, chatId);
     respondiendo[chatId].previousMessage = messageCustomer
 
     // Calcular tiempo de espera y mostrar información
@@ -213,44 +225,7 @@ app.post('/webhook', async (req, res) => {
       if (phoneNumber) {
         
         await sendMessage(respuesta, phoneNumber)
-        let contactoId = await updateContactHistory(phoneNumber, history, contactoExistente)
-        if(contactoId && (respuesta == 'Espera un momento por favor.' || respuesta == 'Dame un momento mientras busco el estado de tu trámite.' || respuesta == 'Dame un momento mientras busco el estado de tu tramite.' || respuesta == 'Espera un momento por favor mientras busco el estado de tu trámite.' || respuesta == 'Espera un momento por favor. Voy a buscar el estado de tu trámite.')) {
-          const reponseContact = await axios.get(`${BITRIX24_API_URL}crm.deal.list.json?filter[CONTACT_ID]=${contactoId}`)
-          if(reponseContact.data.result.length > 0) {
-            let deal = reponseContact.data.result[0]
-            console.log('deal.STAGE_ID', deal.STAGE_ID)
-            if(deal.STAGE_ID == 'C27:NEW') {
-              await sendMessage('Tu trámite está en Pendiente por asignar', phoneNumber)
-            }
-            else if(deal.STAGE_ID == 'C27:PREPARATION') {
-              await sendMessage('Tu trámite está en Firma Términos y Condiciones', phoneNumber)
-            }
-            else if(deal.STAGE_ID == 'C27:PREPAYMENT_INVOIC') {
-              await sendMessage('Tu trámite está en Envío de cuestionario', phoneNumber)
-            }
-            else if(deal.STAGE_ID == 'C27:EXECUTING') {
-              await sendMessage('Tu trámite está en Confirmación cuestionario', phoneNumber)
-            }
-            else if(deal.STAGE_ID == 'C27:FINAL_INVOICE') {
-              await sendMessage('Tu trámite está en Recopilación de documentos e historia', phoneNumber)
-            }
-            else if(deal.STAGE_ID == 'C27:UC_593QCO') {
-              await sendMessage('Tu trámite está en Traducción de documentos', phoneNumber)
-            }
-            else if(deal.STAGE_ID == 'C27:UC_2PYKKQ') {
-              await sendMessage('Tu trámite está en Preparación de la solicitud', phoneNumber)
-            }
-            else if(deal.STAGE_ID == 'C27:UC_183NOX') {
-              await sendMessage('Tu trámite está en Cobro de abono intermedio', phoneNumber)
-            }
-            else if(deal.STAGE_ID == 'C27:WON') {
-              await sendMessage('Tu trámite está finalizado', phoneNumber)
-            }
-          }
-          else {
-              await sendMessage('Actualmente no tienes ningún trámite pendiente', phoneNumber)
-          }
-        }
+        updateContactHistory(phoneNumber, history, historialBitrix)
         console.log('respuesta', respuesta)
       }
       else {
@@ -322,23 +297,50 @@ async function transcribeAudio(filePath) {
 // Función para verificar contacto y valor del campo en Bitrix24
 async function checkContactAndFieldValue(phoneNumber) {
   try {
-    const response = await axios.get(`${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}`);
+    // Primero buscar en Leads
+    const leadResponse = await axios.get(
+      `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID`
+    );
 
-    // Si no hay contactos, debemos responder y crear uno nuevo
-    if (!response.data.result || response.data.result.length === 0) {
-      return 'create';
-    }
+    // Si encontramos leads, verificar el campo en el lead o su contacto asociado
+    if (leadResponse.data.result && leadResponse.data.result.length > 0) {
 
-    // Verificar el valor del campo en cada contacto encontrado
-    for (const contact of response.data.result) {
-      if (contact[BITRIX24_LIST_FIELD_ID] === BITRIX24_LIST_VALUE) {
-        return true; // El campo tiene el valor correcto, debemos responder
+      let lead = leadResponse.data.result[leadResponse.data.result.length-1]
+      // Seguimiento 2 === "STATUS_ID": "UC_EMY4OP"
+      if (lead.STATUS_ID === "UC_EMY4OP") {
+        await axios.post(`${BITRIX24_API_URL}crm.lead.update`, {
+          id: lead.ID,
+          fields: {
+            ASSIGNED_BY_ID: 8659
+          }
+        })
+        console.log('Se le transfirió a un agente')
+        return false
+      }
+
+      for (const lead of leadResponse.data.result) {
+        // Si el lead tiene el campo con el valor correcto, retornar true
+        if (lead[BITRIX24_LIST_FIELD_ID] === '2709') {
+          return true;
+        }
+
+        // Si el lead tiene contacto asociado, verificar el contacto
+        // if (lead.CONTACT_ID) {
+        //   const contactResponse = await axios.get(
+        //     `${BITRIX24_API_URL}crm.contact.get?id=${lead.CONTACT_ID}&SELECT[]=${BITRIX24_LIST_FIELD_ID}`
+        //   );
+          
+        //   if (contactResponse.data.result && 
+        //       contactResponse.data.result[BITRIX24_LIST_FIELD_ID] === BITRIX24_LIST_VALUE) {
+        //     return true;
+        //   }
+        // }
       }
     }
 
-    return false; // El contacto existe pero el campo no tiene el valor correcto
+    return false; // Existe pero el campo no tiene el valor correcto
   } catch (error) {
-    console.error('Error al verificar contacto en Bitrix24:', error.response?.data || error.message);
+    console.error('Error al verificar lead/contacto en Bitrix24:', error.response?.data || error.message);
     throw error;
   }
 }
