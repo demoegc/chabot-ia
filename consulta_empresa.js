@@ -290,7 +290,7 @@ Contexto de conversación:
 ${ultimosDosMensajes}`;
 
         const response = await openai.chat.completions.create({
-            model: "gpt-5",
+            model: "gpt-4o",
             messages: [{
                 role: "system",
                 content: 'Eres un asistente que solo responde con SI o NO, indicando si el mensaje significa que el cliente será transferido a un agente humano.'
@@ -604,7 +604,7 @@ ${historialCompleto}
 Resumen profesional:`;
 
         const resumenResponse = await openai.chat.completions.create({
-            model: "gpt-5",
+            model: "gpt-4o",
             messages: [{
                 role: "system",
                 content: "Eres un asistente experto en resumir conversaciones de inmigración. Proporciona un resumen claro y conciso."

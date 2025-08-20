@@ -123,7 +123,7 @@ app.post('/webhook', async (req, res) => {
       return res.status(200).end();
     }
 
-    if (sentFromApp || status == 'read' || authorName === 'Admin' || status === 'delivered' || status !== 'inbound' || isEcho) {
+    if (sentFromApp || status == 'read' || authorName === 'Admin' || status === 'delivered' || status !== 'inbound') {
       console.log('mensaje no es de un usuario real o ya fue procesado número: ' + chatId);
       delete respondiendo[chatId]
       return;
