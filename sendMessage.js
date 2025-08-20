@@ -71,10 +71,18 @@ class WazzupAPI {
 }
 
 // Ejemplo de uso
-const sendMessage = async (message, CHAT_ID) => {
+const sendMessage = async (message, CHAT_ID, trackingNumber) => {
   // Configuración
-  const API_KEY = '388c6743795c43b497b5408a617bec2d';
-  const CHANNEL_ID = 'ffc12f3b-a97f-4471-ac36-ce18458da455';
+  let API_KEY;
+  let CHANNEL_ID;
+  if (trackingNumber == '561') {
+    API_KEY = '388c6743795c43b497b5408a617bec2d';
+    CHANNEL_ID = '37e572a1-a8ec-460e-b71a-881f831ca905';
+  }
+  else {
+    API_KEY = '388c6743795c43b497b5408a617bec2d';
+    CHANNEL_ID = 'ffc12f3b-a97f-4471-ac36-ce18458da455';
+  }
   const CHAT_TYPE = 'whatsapp'; // whatsapp, viber, whatsgroup, instagram, telegram
 
   // Crear instancia de la API

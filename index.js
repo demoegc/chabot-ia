@@ -6,8 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 const axios = require("axios");
-const { responderConPdf, obtenerResumenHistorial, generarMensajeSeguimiento, updateContactHistory, updateLeadField } = require("./consulta_empresa.js");
+const { responderConPdf, obtenerResumenHistorial, generarMensajeSeguimiento, updateContactHistory, updateLeadField, responderFueraDeHorario } = require("./consulta_empresa.js");
 const sendMessage = require('./sendMessage.js')
+const moment = require('moment-timezone');
 
 const app = express();
 app.use(cors());
@@ -39,21 +40,22 @@ app.get('/send-message', async (req, res) => {
 
 app.post('/mensaje-recordatorio', async (req, res) => {
 
-  const { phone } = req.query;
+  const { phone, trackingNumber } = req.query;
 
   console.log('phone', phone)
+  console.log('trackingNumber', trackingNumber)
 
   try {
     let chatId = phone.split(',')[0].trim();
 
     chatId = chatId.replace(/\D/g, '');
 
-    const { respuesta } = await generarMensajeSeguimiento(chatId);
+    const { respuesta } = await generarMensajeSeguimiento(chatId, trackingNumber);
 
     // Enviar respuesta
     console.log('respuesta', respuesta)
     console.log('chatId', chatId)
-    await sendMessage(respuesta, chatId)
+    await sendMessage(respuesta, chatId, trackingNumber)
     return res.json({ message: 'Mensaje de recordatorio enviado' })
 
   } catch (error) {
@@ -64,7 +66,6 @@ app.post('/mensaje-recordatorio', async (req, res) => {
 let respondiendo = {}
 
 app.post('/webhook', async (req, res) => {
-  console.log('entró al webhook')
 
   let idRuta;
 
@@ -80,10 +81,10 @@ app.post('/webhook', async (req, res) => {
     }
 
     let message = messages[0]
-    const { chatId, type, sentFromApp, authorName, authorId, status } = message;
+    const { chatId, type, sentFromApp, authorName, authorId, status, isEcho } = message;
 
     if (!respondiendo[chatId]) {
-      respondiendo[chatId] = { count: 0 }
+      respondiendo[chatId] = { count: 0, previousMessage: null, identificador: null };
     }
 
     let identificador = Date.now();
@@ -96,17 +97,24 @@ app.post('/webhook', async (req, res) => {
       delete respondiendo[chatId]
       return res.end()
     }
+    // console.log('messages', messages)
 
     if (authorId && parseInt(authorId) > 0) {
       console.log(`🛠️ Mensaje de Admin recibido para ${chatId}`);
 
       try {
-        const resumenHistorial = await obtenerResumenHistorial(chatId);
-        console.log(`📜 Resumen profesional de la conversación con ${chatId}:\n`);
-        console.log(resumenHistorial);
-        console.log('\n' + '-'.repeat(50) + '\n');
 
-        await updateLeadField(chatId, resumenHistorial);
+        let response = await runWorkflowMoverASeguimiento2(chatId)
+
+        if (response) {
+          const resumenHistorial = await obtenerResumenHistorial(chatId);
+          console.log(`📜 Resumen profesional de la conversación con ${chatId}:\n`);
+          console.log(resumenHistorial);
+          console.log('\n' + '-'.repeat(50) + '\n');
+  
+          await updateLeadField(chatId, resumenHistorial);
+        }
+
       } catch (error) {
         console.error('Error al procesar mensaje de admin:', error);
       }
@@ -115,7 +123,8 @@ app.post('/webhook', async (req, res) => {
       return res.status(200).end();
     }
 
-    if (sentFromApp || status == 'read' || authorName === 'Admin') {
+    if (sentFromApp || status == 'read' || authorName === 'Admin' || status === 'delivered' || status !== 'inbound' || isEcho) {
+      console.log('mensaje no es de un usuario real o ya fue procesado número: ' + chatId);
       delete respondiendo[chatId]
       return;
     }
@@ -182,7 +191,7 @@ app.post('/webhook', async (req, res) => {
     const shouldRespond = await checkContactAndFieldValue(chatId);
     console.log('shouldRespond', shouldRespond)
 
-    if (!shouldRespond) {
+    if (!shouldRespond && typeof shouldRespond === "boolean") {
       console.log(`No se responderá al contacto ${chatId} (el campo no tiene el valor requerido o el contacto no existe)`);
       delete respondiendo[chatId]
       return res.status(200).end();
@@ -206,7 +215,16 @@ app.post('/webhook', async (req, res) => {
 
     // Procesar mensaje solo si se debe responder
     console.log('messageCustomer', messageCustomer)
-    const { respuesta, history, historialBitrix, contactoExistente, preguntaUsuario } = await responderConPdf(messageCustomer, chatId);
+    let info = {}
+    if (shouldRespond === 'Fuera de horario') {
+      info = await responderFueraDeHorario(chatId, messageCustomer)
+    }
+    else {
+      info = await responderConPdf(messageCustomer, chatId);
+    }
+
+    const { respuesta, history, historialBitrix } = info;
+
     respondiendo[chatId].previousMessage = messageCustomer
 
     // Calcular tiempo de espera y mostrar información
@@ -215,7 +233,7 @@ app.post('/webhook', async (req, res) => {
     console.log(`✍️ Simulando escritura de ${palabras} palabras (esperando ${tiempoEspera.toFixed(1)} segundos)...`);
 
     // Esperar antes de enviar
-    await esperar(tiempoEspera * 1000);
+    // await esperar(tiempoEspera * 1000);
 
     if (respondiendo[chatId]?.identificador === idRuta) {
       let phoneNumber;
@@ -294,8 +312,46 @@ async function transcribeAudio(filePath) {
   }
 }
 
+async function runWorkflowMoverASeguimiento2(phoneNumber) {
+  try {
+    const leadResponse = await axios.get(
+      `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
+    );
+    if (leadResponse.data.result && leadResponse.data.result.length > 0) {
+
+      let lead = leadResponse.data.result[leadResponse.data.result.length - 1]
+
+      if (lead.STATUS_ID === "UC_11XRR5") {
+        await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
+          TEMPLATE_ID: 771,
+          DOCUMENT_ID: [
+            'crm',
+            'CCrmDocumentLead',
+            `LEAD_${lead.ID}`
+          ],
+        });
+      }
+
+      return lead[BITRIX24_LIST_FIELD_ID] == BITRIX24_LIST_VALUE
+    }
+  } catch (error) {
+    console.log(error)
+  }
+}
+
 // Función para verificar contacto y valor del campo en Bitrix24
 async function checkContactAndFieldValue(phoneNumber) {
+
+  const now = moment().tz("America/Caracas");
+  const horaActual = now.hours();
+
+  // Definir horario laboral (8 AM a 7 PM UTC-4)
+  const horaInicioLaboral = 8;
+  const horaFinLaboral = 19;
+
+  // Verificar si está fuera del horario laboral
+  const fueraDeHorario = horaActual < horaInicioLaboral || horaActual >= horaFinLaboral;
+
   try {
     // Primero buscar en Leads
     const leadResponse = await axios.get(
@@ -305,8 +361,8 @@ async function checkContactAndFieldValue(phoneNumber) {
     // Si encontramos leads, verificar el campo en el lead o su contacto asociado
     if (leadResponse.data.result && leadResponse.data.result.length > 0) {
 
-      let lead = leadResponse.data.result[leadResponse.data.result.length-1]
-      // Seguimiento 2 === "STATUS_ID": "UC_EMY4OP"
+      let lead = leadResponse.data.result[leadResponse.data.result.length - 1]
+      // Seguimiento 2 === "UC_EMY4OP"
       if (lead.STATUS_ID === "UC_EMY4OP") {
         await axios.post(`${BITRIX24_API_URL}crm.lead.update`, {
           id: lead.ID,
@@ -316,6 +372,21 @@ async function checkContactAndFieldValue(phoneNumber) {
           }
         })
         console.log('Se le transfirió a un agente')
+        if (fueraDeHorario) {
+          return 'Fuera de horario'; // No es necesario responder si está dentro del horario
+        }
+        return false
+      }
+      // Contacto Inicial === UC_11XRR5
+      else if (lead.STATUS_ID === "UC_11XRR5") {
+        await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
+          TEMPLATE_ID: 771,
+          DOCUMENT_ID: [
+            'crm',
+            'CCrmDocumentLead',
+            `LEAD_${lead.ID}`
+          ],
+        });
         return false
       }
 
@@ -330,7 +401,7 @@ async function checkContactAndFieldValue(phoneNumber) {
         //   const contactResponse = await axios.get(
         //     `${BITRIX24_API_URL}crm.contact.get?id=${lead.CONTACT_ID}&SELECT[]=${BITRIX24_LIST_FIELD_ID}`
         //   );
-          
+
         //   if (contactResponse.data.result && 
         //       contactResponse.data.result[BITRIX24_LIST_FIELD_ID] === BITRIX24_LIST_VALUE) {
         //     return true;

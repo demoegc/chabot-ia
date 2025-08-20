@@ -40,16 +40,16 @@ async function recuperarFragments(pregunta, topK = 3) {
     return similitudes.slice(0, topK);
 }
 
-async function generarMensajeSeguimiento(chatId) {
+async function generarMensajeSeguimiento(chatId, trackingNumber) {
     try {
         // Obtener historial directamente de Bitrix24
         let { historial: historialBitrix, resumenHistorial } = await checkContactHistory(chatId, true);
 
-        if (!historialBitrix) {
-            const mensajeDefault = "Hola, ¿en qué puedo ayudarte hoy?";
-            await registrarSeguimientoEnBitrix(chatId, mensajeDefault, '');
-            return { respuesta: mensajeDefault };
-        }
+        // if (!historialBitrix) {
+        //     const mensajeDefault = "Hola, ¿en qué puedo ayudarte hoy?";
+        //     await registrarSeguimientoEnBitrix(chatId, mensajeDefault, '');
+        //     return { respuesta: mensajeDefault };
+        // }
 
         // 4. Generar mensaje de seguimiento
         const prompt = `Basado en el siguiente historial de conversación, genera un mensaje de seguimiento.
@@ -96,7 +96,7 @@ PETICIÓN FAMILIAR
 3. Hola [Nombre] 😊 Por tu matrimonio con un(a) ciudadano(a) estadounidense, tienes la ventaja de que el proceso para la residencia es más ágil. Entre más pronto lo iniciemos, más pronto podrás disfrutar de la estabilidad que trae. ¿Quieres que retomemos tu solicitud?
 
 Historial de conversación:
-${historial}
+${historialBitrix}
 
 
 ${resumenHistorial
@@ -109,7 +109,7 @@ No repitas siempre los mismo cada vez que se haga un seguimiento, para que parez
 Mensaje de seguimiento:`;
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "gpt-5",
             messages: [{
                 role: "system",
                 content: "Eres un asistente experto en redactar mensajes de seguimiento para clientes de inmigración. Usa un tono cálido y profesional, estilo WhatsApp."
@@ -117,7 +117,7 @@ Mensaje de seguimiento:`;
                 role: "user",
                 content: prompt
             }],
-            temperature: 0.5
+            // temperature: 0.5
         });
 
         const mensajeSeguimiento = response.choices[0].message.content;
@@ -233,17 +233,25 @@ ${historialBitrix !== '' ? 'Estudia el historial y responde en base a lo que ya 
         }
     ];
 
+    // console.log(historialBitrix.split('\n'))
+
+    // return
+
     // Generar respuesta
     const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-5",
         messages,
-        temperature: 0.7
+        // temperature: 0.7
     });
 
     const respuesta = completion.choices[0].message.content;
 
+    let ultimoMensaje = getLastConversation(historialBitrix.split('\n'))
+
+    ultimoMensaje += '\n' + `- Cliente: ${preguntaUsuario}\n- Asistente IA: ${respuesta}`
+
     // Verificar si la respuesta indica una transferencia a agente
-    const transferenciaDetectada = await verificarTransferenciaAgente(chatId, respuesta, historialBitrix);
+    const transferenciaDetectada = await verificarTransferenciaAgente(chatId, respuesta, ultimoMensaje);
     console.log('transferenciaDetectada', transferenciaDetectada)
 
     if (transferenciaDetectada) {
@@ -253,29 +261,36 @@ ${historialBitrix !== '' ? 'Estudia el historial y responde en base a lo que ya 
         await updateLeadField(chatId, responseResumen)
     }
 
-    // Actualizar el historial en Bitrix24
-    // await updateContactHistory(chatId, [{ pregunta: preguntaUsuario, respuesta }], historialBitrix || '');
-
     return { respuesta, chatId, preguntaUsuario, history: [{ pregunta: preguntaUsuario, respuesta }], historialBitrix };
 }
 
-async function verificarTransferenciaAgente(chatId, ultimaRespuesta, historialConversacion) {
+const getLastConversation = (conversation) => {
+    // Filtrar las líneas no vacías
+    const filteredConversation = conversation.filter(line => line.trim() !== '');
+
+    // La última conversación sería el último intercambio de mensajes
+    let lastMessage = filteredConversation[filteredConversation.length - 2];
+    lastMessage += '\n' + filteredConversation[filteredConversation.length - 1];
+
+    return lastMessage;
+};
+
+async function verificarTransferenciaAgente(chatId, ultimaRespuesta, ultimosDosMensajes) {
+    // console.log('ultimosDosMensajes', ultimosDosMensajes)
     try {
         const prompt = `Analiza el siguiente mensaje y determina si indica que el cliente será transferido a un agente humano. 
 Responde solo con "SI" o "NO".
 Si el cliente quiere hacer el pago también tienes que decir "SI".
 Cuando el mensaje a analizar diga que va a ser transferido con un agente afirmativamente, puedes decir "SI". Si lo hace en forma de pregunta como: "puedo agendarte con un asesor experto para avanzar con este paso. ¿Te gustaría que lo haga ahora?" tienes que responder "NO", y si el cliente quiere abanzar con el proceso, también debes decir "SI".
 Si de habla de pago debes decir "SI".
-Si ya se le dijo al cliente cuando le gustaría que lo contacten, y el cliente ya respondió, también debes responder "SI"
-
-Mensaje a analizar:
-"${ultimaRespuesta}"
+Si ya se le dijo al cliente cuando le gustaría que lo contacten, y el cliente ya respondió, también debes responder "SI".
+Debes decir "SI" si el cliente muestra enojo o frustración
 
 Contexto de conversación:
-${historialConversacion}`;
+${ultimosDosMensajes}`;
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "gpt-5",
             messages: [{
                 role: "system",
                 content: 'Eres un asistente que solo responde con SI o NO, indicando si el mensaje significa que el cliente será transferido a un agente humano.'
@@ -283,8 +298,8 @@ ${historialConversacion}`;
                 role: "user",
                 content: prompt
             }],
-            temperature: 0,
-            max_tokens: 2
+            // temperature: 0,
+            // max_tokens: 2
         });
 
         console.log('verificarTransferenciaAgente', response.choices[0].message.content.trim().toUpperCase())
@@ -329,17 +344,40 @@ async function notificarTransferenciaAgente(chatId, mensajeTransferencia) {
         }
 
         // 2. Crear notificación en Bitrix24
-        const notificationText = `El cliente con número ${chatId} se te ha transferido.`;
+        const notificationText = `Se te ha transferido el cliente con el número de teléfono ${chatId}`;
 
-        await axios.post(`${BITRIX24_API_URL}im.notify`, {
-            to: assignedTo,
-            message: notificationText,
-            type: "SYSTEM"
-        });
+        // await axios.post(`${BITRIX24_API_URL}im.notify`, {
+        //     to: assignedTo,
+        //     message: notificationText,
+        //     type: "SYSTEM"
+        // });
+
+        await sendDirectMessage(assignedTo, notificationText)
 
         console.log(`Notificación de transferencia enviada al agente ${assignedTo}`);
     } catch (error) {
         console.error("Error al notificar transferencia a agente:", error.message);
+    }
+}
+
+async function sendDirectMessage(userId, message) {
+    if (!BITRIX24_API_URL) throw new Error("Falta BITRIX24_API_URL en variables de entorno");
+    if (!userId) throw new Error("Falta userId (ID numérico del empleado)");
+    if (!message) throw new Error("Falta message");
+
+    try {
+        const url = `${BITRIX24_API_URL}im.message.add.json`;
+        const payload = {
+            DIALOG_ID: userId,          // <- DM al usuario
+            MESSAGE: message,           // texto plano o con BBCode simple
+            // SYSTEM: true,               // para que no se muestre como mensaje del usuario
+        };
+    
+        const { data } = await axios.post(url, payload);
+        if (data.error) throw new Error(`${data.error}: ${data.error_description}`);
+        return data.result; // ID del mensaje enviado
+    } catch (error) {
+        console.log(error)
     }
 }
 
@@ -353,11 +391,11 @@ async function updateLeadField(phoneNumber, resumenHistorial) {
             return null;
         }
 
-        const leadId = response.data.result[response.data.result.length-1].ID;
-        const responsible = response.data.result[response.data.result.length-1].ASSIGNED_BY_ID;
-        const respondiendoChatbot = response.data.result[response.data.result.length-1].UF_CRM_1752006453;
+        const leadId = response.data.result[response.data.result.length - 1].ID;
+        const responsible = response.data.result[response.data.result.length - 1].ASSIGNED_BY_ID;
+        const respondiendoChatbot = response.data.result[response.data.result.length - 1].UF_CRM_1752006453;
 
-        if(respondiendoChatbot != '2709') {
+        if (respondiendoChatbot != '2709') {
             return null
         }
 
@@ -517,6 +555,7 @@ async function updateContactHistory(chatId, history, historialExistente) {
         // Lógica para iniciar el workflow si es un lead con estado específico
         if (leadId) {
             const leadStatusResponse = await axios.get(`${BITRIX24_API_URL}crm.lead.get?id=${leadId}&SELECT[]=STATUS_ID`);
+            // Seguimiento 1 === UC_61ZU35
             if (leadStatusResponse.data.result.STATUS_ID === "UC_61ZU35") {
                 await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
                     TEMPLATE_ID: 767,
@@ -565,7 +604,7 @@ ${historialCompleto}
 Resumen profesional:`;
 
         const resumenResponse = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "gpt-5",
             messages: [{
                 role: "system",
                 content: "Eres un asistente experto en resumir conversaciones de inmigración. Proporciona un resumen claro y conciso."
@@ -573,7 +612,7 @@ Resumen profesional:`;
                 role: "user",
                 content: prompt
             }],
-            temperature: 0.3
+            // temperature: 0.3
         });
 
         return resumenResponse.choices[0].message.content;
@@ -608,11 +647,100 @@ const guardarResumenHistorial = async (entityId, resumenHistorial, isContact = t
     }
 }
 
+async function responderFueraDeHorario(chatId, mensajeCliente) {
+    try {
+        // Obtener la hora actual en UTC-4 (America/Caracas)
+        const now = moment().tz("America/Caracas");
+        const dayName = now.format('dddd').toLowerCase();
+        const horaActual = now.hours();
+
+
+        // Definir horario laboral (8 AM a 7 PM UTC-4)
+        const horaInicioLaboral = 8;
+        // const horaFinLaboral = 19;
+
+        let notaImportante = dayName !== 'sunday' && horaActual < horaInicioLaboral ? 'Perfecto, quedas agendado para hoy a las [hora que dijo el cliente que quiería ser contactado, si el cliente no dijo hora, por defecto di que será contactado a las 8:00 AM]' : 'Perfecto, quedas agendado para el día [de mañana o el día de la semana que se le contactará] a las [hora que dijo el cliente que quiería ser contactado]'
+
+        // // Verificar si está fuera del horario laboral
+        // const fueraDeHorario = horaActual < horaInicioLaboral || horaActual >= horaFinLaboral;
+
+        // if (!fueraDeHorario) {
+        //     return null; // No es necesario responder si está dentro del horario
+        // }
+
+        // Obtener historial del cliente desde Bitrix24
+        const { historial: historialBitrix, resumenHistorial } = await checkContactHistory(chatId, true);
+
+        // Generar respuesta personalizada basada en el historial
+        const prompt = `Eres un asistente de una agencia de trámites migratorios. Trabajamos de Lunes a Sábado de 8:00 AM a 7:00 PM (UTC-4), si por ejemplo, un cliente escribe un Sábado después de las 8:00 PM, le dices que será contactado el día Lunes a las 8:00 AM.
+Nombre del día de hoy: ${dayName}
+Hora actual: ${horaActual}
+
+Basado en el siguiente historial de conversación, redacta un mensaje para el cliente explicando que:
+1. Estamos fuera del horario laboral
+2. Un agente le responderá en la mañana siguiente
+3. Mencione brevemente el tema de la conversación previa para mostrar continuidad
+4. Use un tono cálido y profesional
+5. Si el cliente está en medio de un proceso de pago o trámite urgente, añadir que se le dará prioridad
+6. La única pregunta que se le puede hacer al cliente es si desea que lo contacten a primera hora del día siguiente o en la tarde
+7. Si le respondiste al cliente hacer 1 hora o menos, no vuelvas a escribir lo mismo de antes, solo continúa la conversación, la hora del último mensaje aparece así: [2025-08-18 23:37:34], justo arruba de donde dice "- Cliente:"
+8. IMPORTANTE: Si el cliente ya no hace más preguntas y solo dice "ok", "gracias" o algo parecido, simplemente dile "${notaImportante}"
+
+Historial de conversación:
+${historialBitrix || 'No hay historial previo'}
+
+Resumen de la conversación:
+${resumenHistorial || 'No hay resumen disponible'}
+
+Mensaje del cliente:
+${mensajeCliente}
+
+Respuesta adecuada (máximo 2-3 líneas, estilo WhatsApp):`;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-5",
+            messages: [{
+                role: "system",
+                content: "Eres un asistente experto en redactar mensajes para clientes de inmigración. Usa un tono cálido y profesional, estilo WhatsApp, y sin signos de exclamación."
+            }, {
+                role: "user",
+                content: prompt
+            }]
+        });
+
+        const respuesta = response.choices[0].message.content;
+
+        // Registrar la interacción en Bitrix24
+        const historialFormateado = `[${now.format('YYYY-MM-DD HH:mm:ss')}]\n- Cliente: ${mensajeCliente}\n- Asistente IA: ${respuesta}\n\n`;
+
+        // await registrarSeguimientoEnBitrix(chatId, respuesta, historialBitrix ? historialBitrix + historialFormateado : historialFormateado);
+
+        return { respuesta, historialBitrix, history: [{ pregunta: mensajeCliente, respuesta }] };
+
+    } catch (error) {
+        console.error("Error en responderFueraDeHorario:", error.message);
+
+        // Respuesta por defecto en caso de error
+        const respuestaDefault = "¡Gracias por tu mensaje! Actualmente estamos fuera del horario laboral. Un agente te contactará mañana para ayudarte.";
+
+        try {
+            await registrarSeguimientoEnBitrix(chatId, respuestaDefault, '');
+        } catch (err) {
+            console.error("Error al registrar respuesta por defecto:", err.message);
+        }
+
+        return { respuesta: respuestaDefault };
+    }
+}
+
+
+
 module.exports = {
     responderConPdf,
     generarMensajeSeguimiento,
     updateContactHistory,
     guardarResumenHistorial,
     obtenerResumenHistorial,
-    updateLeadField
+    updateLeadField,
+    responderFueraDeHorario
 };
