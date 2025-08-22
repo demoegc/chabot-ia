@@ -537,7 +537,7 @@ async function updateContactHistory(chatId, history, historialExistente, channel
             };
         }
 
-        if (channelId) updateData = {...updateData, "UF_CRM_1755880170": channelId};
+        if (channelId && channelId !== '') updateData.UF_CRM_1755880170 = channelId;
 
         let resumenHistorial = await obtenerResumenHistorial(chatId, updateData[BITRIX24_HISTORIAL_FIELD]);
 
@@ -560,7 +560,7 @@ async function updateContactHistory(chatId, history, historialExistente, channel
             // Seguimiento 1 === UC_61ZU35
             if (leadStatusResponse.data.result.STATUS_ID === "UC_61ZU35") {
                 await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
-                    TEMPLATE_ID: 767,
+                    TEMPLATE_ID: 773,
                     DOCUMENT_ID: [
                         'crm',
                         'CCrmDocumentLead',

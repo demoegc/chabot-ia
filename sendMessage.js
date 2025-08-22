@@ -81,6 +81,8 @@ const sendMessage = async (message, CHAT_ID, trackingNumber, channelId) => {
   else {
     CHANNEL_ID = channelId;
   }
+
+  if(!CHANNEL_ID) CHANNEL_ID = '37e572a1-a8ec-460e-b71a-881f831ca905';
   const CHAT_TYPE = 'whatsapp'; // whatsapp, viber, whatsgroup, instagram, telegram
 
   // Crear instancia de la API
