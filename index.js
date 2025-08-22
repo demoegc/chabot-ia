@@ -28,7 +28,7 @@ const BITRIX24_LIST_VALUE = '2223'; // Yes
 const BITRIX24_ADMIN_VALUE = '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
-  return res.json({ message: 'Última cambio manual del servidor el día 22/08/2025' })
+  return res.json({ message: 'Última cambio manual del servidor el día 22/08/2025 17:52' })
 })
 
 app.get('/send-message', async (req, res) => {
@@ -329,56 +329,81 @@ async function checkContactAndFieldValue(phoneNumber) {
   const horaFinLaboral = 19;
   const fueraDeHorario = horaActual < horaInicioLaboral || horaActual >= horaFinLaboral;
 
-  try {
-    const leadResponse = await axios.get(
-      `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
-    );
+  // Función para buscar el lead
+  const buscarLead = async () => {
+    try {
+      const leadResponse = await axios.get(
+        `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
+      );
 
-    if (leadResponse) {
+      if (leadResponse.data.result && leadResponse.data.result.length > 0) {
+        let lead = leadResponse.data.result[leadResponse.data.result.length - 1];
 
-    }
-
-    if (leadResponse.data.result && leadResponse.data.result.length > 0) {
-      let lead = leadResponse.data.result[leadResponse.data.result.length - 1];
-
-      if (lead.STATUS_ID === "UC_EMY4OP") {
-        await axios.post(`${BITRIX24_API_URL}crm.lead.update`, {
-          id: lead.ID,
-          fields: {
-            "ASSIGNED_BY_ID": lead.UF_CRM_1755093738 || lead.ASSIGNED_BY_ID,
-            "STATUS_ID": "UC_11XRR5"
+        if (lead.STATUS_ID === "UC_EMY4OP") {
+          await axios.post(`${BITRIX24_API_URL}crm.lead.update`, {
+            id: lead.ID,
+            fields: {
+              "ASSIGNED_BY_ID": lead.UF_CRM_1755093738 || lead.ASSIGNED_BY_ID,
+              "STATUS_ID": "UC_11XRR5"
+            }
+          });
+          console.log('Se le transfirió a un agente');
+          if (fueraDeHorario) {
+            return 'Fuera de horario';
           }
-        });
-        console.log('Se le transfirió a un agente');
-        if (fueraDeHorario) {
-          return 'Fuera de horario';
+          return false;
         }
-        return false;
-      }
-      else if (lead.STATUS_ID === "UC_11XRR5") {
-        // await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
-        //   TEMPLATE_ID: 773,
-        //   DOCUMENT_ID: [
-        //     'crm',
-        //     'CCrmDocumentLead',
-        //     `LEAD_${lead.ID}`
-        //   ],
-        // });
-        return false;
+        else if (lead.STATUS_ID === "UC_11XRR5") {
+          // await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
+          //   TEMPLATE_ID: 773,
+          //   DOCUMENT_ID: [
+          //     'crm',
+          //     'CCrmDocumentLead',
+          //     `LEAD_${lead.ID}`
+          //   ],
+          // });
+          return false;
+        }
+
+        for (const lead of leadResponse.data.result) {
+          if (lead[BITRIX24_LIST_FIELD_ID] === '2709') {
+            return true;
+          }
+        }
       }
 
-      for (const lead of leadResponse.data.result) {
-        if (lead[BITRIX24_LIST_FIELD_ID] === '2709') {
-          return true;
-        }
-      }
+      return null; // Retorna null cuando no encuentra el lead para continuar el bucle
+
+    } catch (error) {
+      console.error('Error al verificar lead/contacto en Bitrix24:', error.response?.data || error.message);
+      throw error;
     }
+  };
 
-    return false;
-  } catch (error) {
-    console.error('Error al verificar lead/contacto en Bitrix24:', error.response?.data || error.message);
-    throw error;
+  // Bucle de búsqueda con máximo 24 intentos (2 minutos)
+  let intentos = 0;
+  const maxIntentos = 24;
+  const intervalo = 5000; // 5 segundos
+
+  while (intentos < maxIntentos) {
+    const resultado = await buscarLead();
+    
+    // Si se encuentra un resultado válido (true, false o string), lo retornamos
+    if (resultado !== null) {
+      return resultado;
+    }
+    
+    intentos++;
+    
+    // Si no es el último intento, esperamos 5 segundos
+    if (intentos < maxIntentos) {
+      console.log(`Lead no encontrado. Intento ${intentos}/${maxIntentos}. Esperando 5 segundos...`);
+      await new Promise(resolve => setTimeout(resolve, intervalo));
+    }
   }
+
+  console.log('Lead no encontrado después de 24 intentos (2 minutos)');
+  return false;
 }
 
 // Función para crear un nuevo contacto en Bitrix24
