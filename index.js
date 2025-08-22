@@ -129,10 +129,10 @@ app.post('/webhook', async (req, res) => {
     let message = messages[0];
     const { chatId, type, sentFromApp, authorName, authorId, status, isEcho, text, messageId, channelId } = message;
 
-    if (chatId !== '19545480212' && chatId !== '584129253568') {
-      console.log('chatId', chatId, 'Es diferente a 19545480212');
-      return res.status(200).send("OK");;
-    }
+    // if (chatId !== '19545480212' && chatId !== '584129253568') {
+    //   console.log('chatId', chatId, 'Es diferente a 19545480212');
+    //   return res.status(200).send("OK");;
+    // }
 
     // Mensajes de admin se procesan inmediatamente
     if (authorId && parseInt(authorId) > 0) {
