@@ -282,7 +282,7 @@ async function verificarTransferenciaAgente(chatId, ultimaRespuesta, ultimosDosM
 Responde solo con "SI" o "NO".
 Si el cliente quiere hacer el pago también tienes que decir "SI".
 Cuando el mensaje a analizar diga que va a ser transferido con un agente afirmativamente, puedes decir "SI". Si lo hace en forma de pregunta como: "puedo agendarte con un asesor experto para avanzar con este paso. ¿Te gustaría que lo haga ahora?" tienes que responder "NO", y si el cliente quiere abanzar con el proceso, también debes decir "SI".
-Si de habla de pago debes decir "SI".
+Si se habla de pago debes decir "SI".
 Si ya se le dijo al cliente cuando le gustaría que lo contacten, y el cliente ya respondió, también debes responder "SI".
 Debes decir "SI" si el cliente muestra enojo o frustración
 
@@ -366,11 +366,10 @@ async function sendDirectMessage(userId, message) {
     if (!message) throw new Error("Falta message");
 
     try {
-        const url = `${BITRIX24_API_URL}im.message.add.json`;
+        const url = `https://tuagentedeinmigracion.bitrix24.co/rest/9795/iyud3674l753r33a/im.message.add.json`;
         const payload = {
             DIALOG_ID: userId,          // <- DM al usuario
             MESSAGE: message,           // texto plano o con BBCode simple
-            // SYSTEM: true,               // para que no se muestre como mensaje del usuario
         };
     
         const { data } = await axios.post(url, payload);
@@ -381,7 +380,7 @@ async function sendDirectMessage(userId, message) {
     }
 }
 
-async function updateLeadField(phoneNumber, resumenHistorial) {
+async function updateLeadField(phoneNumber, resumenHistorial, channelId) {
     try {
         // Primero obtener el ID del lead
         const response = await axios.get(`${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=UF_CRM_1752006453&SELECT[]=ASSIGNED_BY_ID`);
@@ -403,7 +402,8 @@ async function updateLeadField(phoneNumber, resumenHistorial) {
             id: leadId,
             fields: {
                 "UF_CRM_1752006453": 2711,
-                "STATUS_ID": "UC_11XRR5"
+                "STATUS_ID": "UC_11XRR5",
+                "UF_CRM_1755880170": channelId || ''
             }
         };
 
@@ -480,7 +480,7 @@ async function checkContactHistory(chatId, obtenerResumen = false) {
     return '';
 }
 
-async function updateContactHistory(chatId, history, historialExistente) {
+async function updateContactHistory(chatId, history, historialExistente, channelId) {
     try {
         // Primero buscar el Lead que contenga este número de teléfono
         const leadResponse = await axios.get(`${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_HISTORIAL_FIELD}`);
@@ -536,6 +536,8 @@ async function updateContactHistory(chatId, history, historialExistente) {
                 [BITRIX24_HISTORIAL_FIELD]: existingHistory + historial[historial.length - 1]
             };
         }
+
+        if (channelId) updateData = {...updateData, "UF_CRM_1755880170": channelId};
 
         let resumenHistorial = await obtenerResumenHistorial(chatId, updateData[BITRIX24_HISTORIAL_FIELD]);
 
@@ -672,9 +674,9 @@ async function responderFueraDeHorario(chatId, mensajeCliente) {
         const { historial: historialBitrix, resumenHistorial } = await checkContactHistory(chatId, true);
 
         // Generar respuesta personalizada basada en el historial
-        const prompt = `Eres un asistente de una agencia de trámites migratorios. Trabajamos de Lunes a Sábado de 8:00 AM a 7:00 PM (UTC-4), si por ejemplo, un cliente escribe un Sábado después de las 8:00 PM, le dices que será contactado el día Lunes a las 8:00 AM.
+        const prompt = `Eres un asistente de una agencia de trámites migratorios. Trabajamos de Lunes a Sábado de 8:00 AM a 7:00 PM horario de Miami, si por ejemplo, un cliente escribe un Sábado después de las 8:00 PM, le dices que será contactado el día Lunes a primera hora.
 Nombre del día de hoy: ${dayName}
-Hora actual: ${horaActual}
+Hora actual: 8:00 PM
 
 Basado en el siguiente historial de conversación, redacta un mensaje para el cliente explicando que:
 1. Estamos fuera del horario laboral
@@ -685,6 +687,8 @@ Basado en el siguiente historial de conversación, redacta un mensaje para el cl
 6. La única pregunta que se le puede hacer al cliente es si desea que lo contacten a primera hora del día siguiente o en la tarde
 7. Si le respondiste al cliente hacer 1 hora o menos, no vuelvas a escribir lo mismo de antes, solo continúa la conversación, la hora del último mensaje aparece así: [2025-08-18 23:37:34], justo arruba de donde dice "- Cliente:"
 8. IMPORTANTE: Si el cliente ya no hace más preguntas y solo dice "ok", "gracias" o algo parecido, simplemente dile "${notaImportante}"
+9. El mensaje debe ser breve, claro y lo más corto posible.
+10. No uses signos de exclamación, solo puntos (.) y comas (,), y el signo de interrogación ponlo solo al final de la oración, para que el mensaje tenga pequeños errores y parezca que fué escrito por un humano.
 
 Historial de conversación:
 ${historialBitrix || 'No hay historial previo'}
@@ -694,8 +698,7 @@ ${resumenHistorial || 'No hay resumen disponible'}
 
 Mensaje del cliente:
 ${mensajeCliente}
-
-Respuesta adecuada (máximo 2-3 líneas, estilo WhatsApp):`;
+`;
 
         const response = await openai.chat.completions.create({
             model: "gpt-5",
