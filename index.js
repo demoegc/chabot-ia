@@ -93,28 +93,19 @@ async function processBufferedMessages(chatId, idSecuencia, channelId) {
 
     const { respuesta, history, historialBitrix } = info;
 
-    let phoneNumber;
-    if (chatId == '19545480212') phoneNumber = '19545480212';
-    if (chatId == '584129253568') phoneNumber = '584129253568';
+    if (idSecuencia != messageBuffers.get(chatId).idSecuencia) {
+      console.log('Entró otro mensajeantes antes de enviar la respuesta')
+      return;
+    }
+    messageBuffers.get(chatId).message = ''
 
-    if (phoneNumber) {
+    await sendMessage(respuesta, chatId, null, messageBuffers.get(chatId).channelId);
+    updateContactHistory(chatId, history, historialBitrix, channelId);
+    console.log('✅ Respuesta enviada:', respuesta);
 
-      if (idSecuencia != messageBuffers.get(chatId).idSecuencia) {
-        console.log('Entró otro mensajeantes antes de enviar la respuesta')
-        return;
-      }
-      messageBuffers.get(chatId).message = ''
-
-      await sendMessage(respuesta, phoneNumber, null, messageBuffers.get(chatId).channelId);
-      updateContactHistory(phoneNumber, history, historialBitrix, channelId);
-      console.log('✅ Respuesta enviada:', respuesta);
-
-      // Crear nuevo contacto en Bitrix24 (si no existe)
-      if (shouldRespond === 'create') {
-        await createContactInBitrix24(chatId, null || 'Cliente WhatsApp');
-      }
-    } else {
-      console.log('No se pudo enviar el mensaje, phoneNumber no definido');
+    // Crear nuevo contacto en Bitrix24 (si no existe)
+    if (shouldRespond === 'create') {
+      await createContactInBitrix24(chatId, null || 'Cliente WhatsApp');
     }
 
   } catch (error) {
@@ -342,6 +333,10 @@ async function checkContactAndFieldValue(phoneNumber) {
     const leadResponse = await axios.get(
       `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
     );
+
+    if (leadResponse) {
+
+    }
 
     if (leadResponse.data.result && leadResponse.data.result.length > 0) {
       let lead = leadResponse.data.result[leadResponse.data.result.length - 1];
