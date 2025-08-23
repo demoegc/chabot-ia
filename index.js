@@ -88,7 +88,7 @@ async function processBufferedMessages(chatId, idSecuencia, channelId) {
     if (shouldRespond === 'Fuera de horario') {
       info = await responderFueraDeHorario(chatId, message);
     } else {
-      info = await responderConPdf(message, chatId);
+      info = await responderConPdf(message, chatId, channelId);
     }
 
     const { respuesta, history, historialBitrix } = info;

@@ -197,7 +197,7 @@ async function registrarSeguimientoEnBitrix(chatId, mensaje, historialExistente)
     }
 }
 
-async function responderConPdf(preguntaUsuario, chatId) {
+async function responderConPdf(preguntaUsuario, chatId, channelId) {
     // Obtener historial directamente de Bitrix24
     const historialBitrix = await checkContactHistory(chatId);
 
@@ -258,7 +258,7 @@ ${historialBitrix !== '' ? 'Estudia el historial y responde en base a lo que ya 
 
         const [responseResumen, responseNotif] = await Promise.all([obtenerResumenHistorial(chatId, historialBitrix), notificarTransferenciaAgente(chatId, respuesta)])
 
-        await updateLeadField(chatId, responseResumen)
+        await updateLeadField(chatId, responseResumen, channelId)
     }
 
     return { respuesta, chatId, preguntaUsuario, history: [{ pregunta: preguntaUsuario, respuesta }], historialBitrix };
