@@ -382,7 +382,7 @@ async function checkContactAndFieldValue(phoneNumber) {
 
   // Bucle de búsqueda con máximo 24 intentos (2 minutos)
   let intentos = 0;
-  const maxIntentos = 24;
+  const maxIntentos = 48;
   const intervalo = 5000; // 5 segundos
 
   while (intentos < maxIntentos) {
