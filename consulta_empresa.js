@@ -251,7 +251,7 @@ ${historialBitrix !== '' ? 'Estudia el historial y responde en base a lo que ya 
     ultimoMensaje += '\n' + `- Cliente: ${preguntaUsuario}\n- Asistente IA: ${respuesta}`
 
     // Verificar si la respuesta indica una transferencia a agente
-    const transferenciaDetectada = await verificarTransferenciaAgente(chatId, respuesta, ultimoMensaje);
+    const transferenciaDetectada = await verificarTransferenciaAgente(chatId, respuesta, ultimoMensaje, historialBitrix);
     console.log('transferenciaDetectada', transferenciaDetectada)
 
     if (transferenciaDetectada) {
@@ -275,7 +275,7 @@ const getLastConversation = (conversation) => {
     return lastMessage;
 };
 
-async function verificarTransferenciaAgente(chatId, ultimaRespuesta, ultimosDosMensajes) {
+async function verificarTransferenciaAgente(chatId, ultimaRespuesta, ultimosDosMensajes, historialBitrix) {
     // console.log('ultimosDosMensajes', ultimosDosMensajes)
     try {
         const prompt = `Analiza el siguiente mensaje y determina si indica que el cliente será transferido a un agente humano. 
@@ -285,9 +285,14 @@ Cuando el mensaje a analizar diga que va a ser transferido con un agente afirmat
 Si se habla de pago debes decir "SI".
 Si ya se le dijo al cliente cuando le gustaría que lo contacten, y el cliente ya respondió, también debes responder "SI".
 Debes decir "SI" si el cliente muestra enojo o frustración
+Si ya el cliente ha enviado dos mensajes, debes decir "SI"
 
 Contexto de conversación:
-${ultimosDosMensajes}`;
+${ultimosDosMensajes}
+
+Historial completo de conversación:
+${historialBitrix}
+`;
 
         const response = await openai.chat.completions.create({
             model: "gpt-4o",
@@ -301,8 +306,6 @@ ${ultimosDosMensajes}`;
             // temperature: 0,
             // max_tokens: 2
         });
-
-        console.log('verificarTransferenciaAgente', response.choices[0].message.content.trim().toUpperCase())
 
         return response.choices[0].message.content.trim().toUpperCase() === "SI";
     } catch (error) {
