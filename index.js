@@ -366,7 +366,7 @@ async function checkContactAndFieldValue(phoneNumber) {
         }
 
         for (const lead of leadResponse.data.result) {
-          if (lead[BITRIX24_LIST_FIELD_ID] === '2709') {
+          if (lead[BITRIX24_LIST_FIELD_ID] === '2709' && (lead.STATUS_ID == "UC_61ZU35" || lead.STATUS_ID == "UC_EMY4OP")) {
             return true;
           }
         }
