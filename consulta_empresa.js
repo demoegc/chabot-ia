@@ -65,35 +65,33 @@ Quiero que actúes como un redactor de mensajes de seguimiento para un chatbot d
 9.    Si tienes el nombre del cliente, siempre llámalo por su primer nombre en el saludo.
 
 Por favor, genera tres ejemplos distintos de mensajes para cada trámite, siguiendo estas reglas:
-ASILO
+Para ASILO usa solouo de estos ejemplos a continuación como referencia:
 
-1. Hola [Nombre] 😊 Quería contarte que varias personas que iniciaron su solicitud de asilo hace poco ya tienen su permiso de trabajo y están encontrando empleos estables. Es una gran oportunidad para empezar a construir seguridad aquí en EE.UU. ¿Quieres que te explique cómo podrías iniciar hoy?
+Ejemplo 1. Hola [Nombre] 😊 Quería contarte que varias personas que iniciaron su solicitud de asilo hace poco ya tienen su permiso de trabajo y están encontrando empleos estables. Es una gran oportunidad para empezar a construir seguridad aquí en EE.UU. ¿Quieres que te explique cómo podrías iniciar hoy?
 
-2. ¡Hola [Nombre]! 👋 Muchas personas que presentaron su asilo ya están trabajando legalmente mientras esperan la decisión. Así han podido mejorar sus ingresos y estabilidad. No quisiera que te quedaras fuera de esa posibilidad. ¿Quieres que te cuente cómo lograrlo?
+Ejemplo 2. ¡Hola [Nombre]! 👋 Muchas personas que presentaron su asilo ya están trabajando legalmente mientras esperan la decisión. Así han podido mejorar sus ingresos y estabilidad. No quisiera que te quedaras fuera de esa posibilidad. ¿Quieres que te cuente cómo lograrlo?
 
-3. Hola [Nombre] 😊 Me alegra ver que cada vez más personas que solicitan asilo logran obtener su permiso de trabajo y avanzar en sus metas aquí en EE.UU. A veces, dar ese primer paso hace toda la diferencia. ¿Quieres que retomemos tu caso?
+Ejemplo 3. Hola [Nombre] 😊 Me alegra ver que cada vez más personas que solicitan asilo logran obtener su permiso de trabajo y avanzar en sus metas aquí en EE.UU. A veces, dar ese primer paso hace toda la diferencia. ¿Quieres que retomemos tu caso?
 
-⸻
 
-PERMISO DE TRABAJO
+Para PERMISO DE TRABAJO usa solouo de estos ejemplos a continuación como referencia:
 
-1. ¡Hola [Nombre]! 👋 Con tu permiso de trabajo vigente podrías aplicar a mejores empleos, con más ingresos y beneficios. Muchos de nuestros clientes que lo renovaron ya están aprovechando nuevas oportunidades. ¿Quieres que te guíe para que no pierdas esa ventaja?
+Ejemplo 1. ¡Hola [Nombre]! 👋 Con tu permiso de trabajo vigente podrías aplicar a mejores empleos, con más ingresos y beneficios. Muchos de nuestros clientes que lo renovaron ya están aprovechando nuevas oportunidades. ¿Quieres que te guíe para que no pierdas esa ventaja?
 
-2. Hola [Nombre] 😊 Tener el permiso de trabajo al día puede abrirte la puerta a empleos mejor pagados y con más estabilidad. Sería una pena que se venciera y frenar tus planes. ¿Quieres que te explique cómo renovarlo a tiempo?
+Ejemplo 2. Hola [Nombre] 😊 Tener el permiso de trabajo al día puede abrirte la puerta a empleos mejor pagados y con más estabilidad. Sería una pena que se venciera y frenar tus planes. ¿Quieres que te explique cómo renovarlo a tiempo?
 
-3. ¡Hola [Nombre]! 😃 Recuerda que con tu permiso vigente puedes trabajar legalmente, crecer profesionalmente y acceder a beneficios que sin él no tendrías. Si lo dejamos vencer, puede complicar tu situación. ¿Te cuento cómo evitarlo?
+Ejemplo 3. ¡Hola [Nombre]! 😃 Recuerda que con tu permiso vigente puedes trabajar legalmente, crecer profesionalmente y acceder a beneficios que sin él no tendrías. Si lo dejamos vencer, puede complicar tu situación. ¿Te cuento cómo evitarlo?
 
-⸻
 
-PETICIÓN FAMILIAR
+Para PETICIÓN FAMILIAR usa solouo de estos ejemplos a continuación como referencia:
 
 (Versión para cliente casado/a con ciudadano/a estadounidense)
 
-1. Hola [Nombre] 😊 Recuerdo que me comentaste que estás casado(a) con un(a) ciudadano(a) estadounidense. Este es un buen momento para iniciar la petición, ya que el proceso suele ser más rápido y podrías obtener tu residencia antes de lo que imaginas. ¿Quieres que retomemos lo que hablamos y avancemos con tu caso?
+Ejemplo 1. Hola [Nombre] 😊 Recuerdo que me comentaste que estás casado(a) con un(a) ciudadano(a) estadounidense. Este es un buen momento para iniciar la petición, ya que el proceso suele ser más rápido y podrías obtener tu residencia antes de lo que imaginas. ¿Quieres que retomemos lo que hablamos y avancemos con tu caso?
 
-2. ¡Hola [Nombre]! 👋 Como estás casado(a) con un(a) ciudadano(a) de EE.UU., tu trámite de residencia puede avanzar más rápido que en otros casos. Muchas parejas ya están disfrutando de este beneficio. ¿Quieres que te explique los pasos para que no pierdas tiempo?
+Ejemplo 2. ¡Hola [Nombre]! 👋 Como estás casado(a) con un(a) ciudadano(a) de EE.UU., tu trámite de residencia puede avanzar más rápido que en otros casos. Muchas parejas ya están disfrutando de este beneficio. ¿Quieres que te explique los pasos para que no pierdas tiempo?
 
-3. Hola [Nombre] 😊 Por tu matrimonio con un(a) ciudadano(a) estadounidense, tienes la ventaja de que el proceso para la residencia es más ágil. Entre más pronto lo iniciemos, más pronto podrás disfrutar de la estabilidad que trae. ¿Quieres que retomemos tu solicitud?
+Ejemplo 3. Hola [Nombre] 😊 Por tu matrimonio con un(a) ciudadano(a) estadounidense, tienes la ventaja de que el proceso para la residencia es más ágil. Entre más pronto lo iniciemos, más pronto podrás disfrutar de la estabilidad que trae. ¿Quieres que retomemos tu solicitud?
 
 Historial de conversación:
 ${historialBitrix}
@@ -289,9 +287,6 @@ Si ya el cliente ha enviado dos mensajes, debes decir "SI"
 
 Contexto de conversación:
 ${ultimosDosMensajes}
-
-Historial completo de conversación:
-${historialBitrix}
 `;
 
         const response = await openai.chat.completions.create({

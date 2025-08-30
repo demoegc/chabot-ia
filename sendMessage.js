@@ -75,7 +75,8 @@ const sendMessage = async (message, CHAT_ID, trackingNumber, channelId) => {
   // Configuración
   let API_KEY = '388c6743795c43b497b5408a617bec2d';
   let CHANNEL_ID;
-  if (channelId == 'ffc12f3b-a97f-4471-ac36-ce18458da455' && trackingNumber == 'seguimiento') {
+  // if (channelId == 'ffc12f3b-a97f-4471-ac36-ce18458da455' && trackingNumber == 'seguimiento') {
+  if (trackingNumber == 'seguimiento') {
     CHANNEL_ID = '37e572a1-a8ec-460e-b71a-881f831ca905';
   }
   else {
