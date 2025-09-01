@@ -93,6 +93,9 @@ Ejemplo 2. ¡Hola [Nombre]! 👋 Como estás casado(a) con un(a) ciudadano(a) de
 
 Ejemplo 3. Hola [Nombre] 😊 Por tu matrimonio con un(a) ciudadano(a) estadounidense, tienes la ventaja de que el proceso para la residencia es más ágil. Entre más pronto lo iniciemos, más pronto podrás disfrutar de la estabilidad que trae. ¿Quieres que retomemos tu solicitud?
 
+NOTA IMPORTANTE: Solo pon unos de los ejemplos correspondientes al trámite que el cliente haya mencionado en el historial. No mezcles ejemplos de diferentes trámites. Por ejemplo: Ejemplo 1. Hola [Nombre] 😊 Recuerdo que me comentaste que estás casado(a) con un(a) ciudadano(a) estadounidense. Este es un buen momento para iniciar la petición, ya que el proceso suele ser más rápido y podrías obtener tu residencia antes de lo que imaginas. ¿Quieres que retomemos lo que hablamos y avancemos con tu caso?
+No coloques todos los ejemplos juntos, solo uno.
+
 Historial de conversación:
 ${historialBitrix}
 
