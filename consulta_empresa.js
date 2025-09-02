@@ -107,6 +107,10 @@ ${resumenHistorial
 
 No repitas siempre los mismo cada vez que se haga un seguimiento, para que parezca más natural el seguimiento
 
+NOTA IMPORTANTE:
+- Si no tienes un historial de conversación, genera un mensaje de seguimiento genérico y cálido, como este ejemplo: Hola, ¿cómo has estado? Solo quería saber si aún estás interesado en avanzar con tu trámite migratorio. Estoy aquí para ayudarte cuando decidas continuar.
+- Recuerda que el mensaje que generes, será enviado directamente al cliente por WhatsApp, así que debe ser muy humano y natural, y no respondas como si fueras una inteligencia artificial.
+
 Mensaje de seguimiento:`;
 
         const response = await openai.chat.completions.create({
