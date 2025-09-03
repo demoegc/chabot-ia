@@ -28,7 +28,7 @@ const BITRIX24_LIST_VALUE = '2223'; // Yes
 const BITRIX24_ADMIN_VALUE = '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
-  return res.json({ message: 'Última cambio manual del servidor el día 26/08/2025 13:38' })
+  return res.json({ message: 'Última cambio manual del servidor el día 03/09/2025 12:39' })
 })
 
 app.get('/send-message', async (req, res) => {
