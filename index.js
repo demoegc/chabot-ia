@@ -390,13 +390,16 @@ async function checkContactAndFieldValue(phoneNumber) {
 
   // Función para buscar el lead
   const buscarLead = async () => {
+
+    let lead;
+
     try {
       const leadResponse = await axios.get(
         `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
       );
 
       if (leadResponse.data.result && leadResponse.data.result.length > 0) {
-        let lead = leadResponse.data.result[leadResponse.data.result.length - 1];
+        lead = leadResponse.data.result[leadResponse.data.result.length - 1];
 
         if (lead.STATUS_ID === "UC_EMY4OP" && lead.STATUS_ID !== "UC_11XRR5") {
           await axios.post(`${BITRIX24_API_URL}crm.lead.update`, {
@@ -471,7 +474,7 @@ async function checkContactAndFieldValue(phoneNumber) {
       // } else {
       //   return false;
       // }
-    } else {
+    } else if(lead.STATUS_ID == "UC_61ZU35") {
       console.log('Contacto no encontrado. Se debe crear uno nuevo.');
       return 'create'; // Retornar 'create' para indicar que se debe crear un nuevo contacto
     }
@@ -490,7 +493,8 @@ async function createContactInBitrix24(phoneNumber, name, messageCustomer, chann
       PHONE: [{ VALUE: `+${phoneNumber}`, VALUE_TYPE: 'WORK' }],
       [BITRIX24_LIST_FIELD_ID]: BITRIX24_LIST_VALUE, // Asignar valor al campo de lista
       UF_CRM_1756909989: messageCustomer,
-      UF_CRM_68A8DCEC8EF2D: channelId
+      UF_CRM_68A8DCEC8EF2D: channelId,
+      ASSIGNED_BY_ID: 9795 // ID del bot
     };
 
     const response = await axios.post(`${BITRIX24_API_URL}crm.contact.add`, {
