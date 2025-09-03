@@ -256,7 +256,7 @@ app.post('/webhook', async (req, res) => {
 
 app.post('/resend-message', async (req, res) => {
 
-  const { phone } = req.body;
+  const { phone } = req.query;
 
   try {
 
