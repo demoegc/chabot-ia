@@ -269,7 +269,7 @@ app.post('/resend-message', async (req, res) => {
     try {
 
       const contactResponse = await axios.get(
-        `${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=UF_CRM_1756909989&SELECT[]=UF_CRM_68A8DCEC8EF2D`
+        `${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=UF_CRM_1756909989&SELECT[]=UF_CRM_68A8DCEC8EF2D`
       );
 
       if (contactResponse.data.result && contactResponse.data.result.length > 0) {
