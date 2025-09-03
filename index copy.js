@@ -28,7 +28,7 @@ const BITRIX24_LIST_VALUE = '2223'; // Yes
 const BITRIX24_ADMIN_VALUE = '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
-  return res.json({ message: 'Última cambio manual del servidor el día 31/07/2025 16:46' })
+  return res.json({ message: 'Última cambio manual del servidor el día 26/08/2025 13:38' })
 })
 
 app.get('/send-message', async (req, res) => {
@@ -40,7 +40,7 @@ app.get('/send-message', async (req, res) => {
 
 app.post('/mensaje-recordatorio', async (req, res) => {
 
-  const { phone, trackingNumber } = req.query;
+  const { phone, trackingNumber, channel } = req.query;
 
   console.log('phone', phone)
   console.log('trackingNumber', trackingNumber)
@@ -55,7 +55,7 @@ app.post('/mensaje-recordatorio', async (req, res) => {
     // Enviar respuesta
     console.log('respuesta', respuesta)
     console.log('chatId', chatId)
-    await sendMessage(respuesta, chatId, trackingNumber)
+    await sendMessage(respuesta, chatId, 'seguimiento', channel)
     return res.json({ message: 'Mensaje de recordatorio enviado' })
 
   } catch (error) {
@@ -64,165 +64,12 @@ app.post('/mensaje-recordatorio', async (req, res) => {
 })
 
 // Agrega estas variables globales al inicio de tu archivo
-const messageQueues = new Map();
-const processing = new Map();
-
-// Función para procesar mensajes en cola
-async function processQueue(chatId) {
-  // Si ya está procesando o no hay mensajes, salir
-  if (processing.get(chatId) || !messageQueues.has(chatId) || messageQueues.get(chatId).length === 0) {
-    return;
-  }
-
-  processing.set(chatId, true);
-
-  try {
-    while (messageQueues.get(chatId).length > 0) {
-      const messageData = messageQueues.get(chatId)[0];
-
-      console.log(`🔁 Procesando mensaje en cola para ${chatId} (${messageQueues.get(chatId).length} restantes)`);
-
-      await processSingleMessage(messageData);
-
-      // Remover el mensaje procesado de la cola
-      messageQueues.get(chatId).shift();
-    }
-  } catch (error) {
-    console.error(`❌ Error procesando cola para ${chatId}:`, error);
-  } finally {
-    // Limpiar la cola si está vacía y liberar el lock
-    if (messageQueues.has(chatId) && messageQueues.get(chatId).length === 0) {
-      messageQueues.delete(chatId);
-    }
-    processing.delete(chatId);
-  }
-}
-
-// Función para procesar un solo mensaje (extraída de tu lógica original)
-async function processSingleMessage(messageData) {
-  const { message, chatId, type, sentFromApp, authorName, authorId, status, isEcho } = messageData;
-
-  let messageCustomer;
-
-  // Caso 1: Mensaje de texto
-  if (type === 'text') {
-    const text = message.text;
-    console.log(`📩 Mensaje de texto de ${chatId}: ${text}`);
-    messageCustomer = text;
-  }
-  // Caso 2: Nota de voz (audio)
-  else if (type === 'audio') {
-    const contentUri = message.contentUri;
-    console.log(`🎤 Nota de voz recibida de ${chatId}`);
-
-    try {
-      const audiosDir = path.join(__dirname, 'audios');
-      if (!fs.existsSync(audiosDir)) {
-        fs.mkdirSync(audiosDir);
-      }
-
-      const fileName = `audio-${Date.now()}.mp3`;
-      const filePath = path.join(audiosDir, fileName);
-
-      const response = await axios({
-        method: 'get',
-        url: contentUri,
-        responseType: 'stream',
-      });
-
-      const writer = fs.createWriteStream(filePath);
-      response.data.pipe(writer);
-
-      await new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-      });
-
-      console.log(`✅ Audio guardado en: ${filePath}`);
-
-      const transcription = await transcribeAudio(filePath);
-      messageCustomer = transcription;
-      console.log(`📝 Transcripción del audio: ${transcription}`);
-
-      try {
-        fs.unlinkSync(filePath);
-        console.log(`🗑️ Audio eliminado: ${filePath}`);
-      } catch (err) {
-        console.error('Error al eliminar el archivo de audio:', err);
-      }
-
-    } catch (error) {
-      console.error('Error al procesar el audio:', error.message);
-    }
-  }
-
-  if (!messageCustomer) {
-    return;
-  }
-
-  // Verificar el contacto en Bitrix24 y el valor del campo específico
-  const shouldRespond = await checkContactAndFieldValue(chatId);
-  console.log('shouldRespond', shouldRespond);
-
-  if (!shouldRespond && typeof shouldRespond === "boolean") {
-    console.log(`No se responderá al contacto ${chatId} (el campo no tiene el valor requerido o el contacto no existe)`);
-    return;
-  }
-
-  // Procesar mensaje solo si se debe responder
-  console.log('messageCustomer', messageCustomer);
-  let info = {};
-  if (shouldRespond === 'Fuera de horario') {
-    info = await responderFueraDeHorario(chatId, messageCustomer);
-  } else {
-    info = await responderConPdf(messageCustomer, chatId);
-  }
-
-  const { respuesta, history, historialBitrix } = info;
-
-  // Calcular tiempo de espera y mostrar información
-  const tiempoEspera = calcularTiempoEscritura(respuesta);
-  const palabras = respuesta.trim().split(/\s+/).length;
-  console.log(`✍️ Simulando escritura de ${palabras} palabras (esperando ${tiempoEspera.toFixed(1)} segundos)...`);
-
-  let phoneNumber;
-  if (chatId == '19545480212') phoneNumber = '19545480212';
-  if (chatId == '584129253568') phoneNumber = '584129253568';
-
-  if (phoneNumber) {
-    await sendMessage(respuesta, phoneNumber);
-    updateContactHistory(phoneNumber, history, historialBitrix);
-    console.log('respuesta', respuesta);
-
-    // Crear nuevo contacto en Bitrix24 (si no existe)
-    if (shouldRespond === 'create') {
-      await createContactInBitrix24(chatId, authorName);
-    }
-  } else {
-    console.log('No se pudo enviar el mensaje, phoneNumber no definido');
-  }
-}
-
-// Agrega estas variables globales al inicio de tu archivo
 const messageBuffers = new Map();
-const BUFFER_TIMEOUT = 2000; // 2 segundos para agrupar mensajes consecutivos
-const pendingResponses = new Map(); // Para trackear respuestas pendientes
 
 // Función para procesar mensajes en buffer
-async function processBufferedMessages(chatId) {
-  if (!messageBuffers.has(chatId) || messageBuffers.get(chatId).length === 0) {
-    return res.status(200).json({ status: 200 });
-  }
+async function processBufferedMessages(chatId, idSecuencia, channelId) {
 
-  const messages = messageBuffers.get(chatId);
-  console.log(`📦 Procesando ${messages.length} mensajes agrupados para ${chatId}`);
-
-  // Combinar todos los mensajes en uno solo
-  const combinedMessage = messages.map(msg => msg.content).join('. ');
-  console.log(`🔗 Mensaje combinado: "${combinedMessage}"`);
-
-  // Limpiar el buffer
-  // messageBuffers.delete(chatId);
+  const { message } = messageBuffers.get(chatId);
 
   // Procesar el mensaje combinado
   try {
@@ -232,83 +79,38 @@ async function processBufferedMessages(chatId) {
 
     if (!shouldRespond && typeof shouldRespond === "boolean") {
       console.log(`No se responderá al contacto ${chatId} (el campo no tiene el valor requerido o el contacto no existe)`);
-      return res.status(200).json({ status: 200 });
+      messageBuffers.get(chatId).message = ''
+      return;
     }
 
     // Procesar mensaje combinado
     let info = {};
-    info = await responderConPdf(combinedMessage, chatId);
+    if (shouldRespond === 'Fuera de horario') {
+      info = await responderFueraDeHorario(chatId, message);
+    } else {
+      info = await responderConPdf(message, chatId, channelId);
+    }
 
     const { respuesta, history, historialBitrix } = info;
 
-    // Verificar si hay nuevos mensajes antes de enviar
-    if (messageBuffers.has(chatId) && messageBuffers.get(chatId).length > 0) {
-      console.log(`🔄 Nuevos mensajes detectados para ${chatId} antes del envío, reprocesando...`);
-      // Volver a procesar con los mensajes combinados
-      messageBuffers.get(chatId).unshift(...messages.map(msg => ({
-        content: combinedMessage,
-        authorName: msg.authorName,
-        timestamp: Date.now()
-      })));
+    if (idSecuencia != messageBuffers.get(chatId).idSecuencia) {
+      console.log('Entró otro mensajeantes antes de enviar la respuesta')
       return;
     }
+    messageBuffers.get(chatId).message = ''
 
-    // Calcular tiempo de espera y mostrar información
-    const tiempoEspera = calcularTiempoEscritura(respuesta);
-    const palabras = respuesta.trim().split(/\s+/).length;
-    console.log(`✍️ Simulando escritura de ${palabras} palabras (esperando ${tiempoEspera.toFixed(1)} segundos)...`);
+    await sendMessage(respuesta, chatId, null, messageBuffers.get(chatId).channelId);
+    updateContactHistory(chatId, history, historialBitrix, channelId);
+    console.log('✅ Respuesta enviada:', respuesta);
 
-    let phoneNumber;
-    if (chatId == '19545480212') phoneNumber = '19545480212';
-    if (chatId == '584129253568') phoneNumber = '584129253568';
-
-    if (phoneNumber) {
-      // Marcar que estamos a punto de enviar una respuesta
-      pendingResponses.set(chatId, true);
-
-      await sendMessage(respuesta, phoneNumber);
-      updateContactHistory(phoneNumber, history, historialBitrix);
-      console.log('✅ Respuesta enviada:', respuesta);
-
-      // Limpiar estado de respuesta pendiente
-      pendingResponses.delete(chatId);
-
-      // Crear nuevo contacto en Bitrix24 (si no existe)
-      if (shouldRespond === 'create') {
-        await createContactInBitrix24(chatId, messages[0].authorName);
-      }
-    } else {
-      console.log('No se pudo enviar el mensaje, phoneNumber no definido');
+    // Crear nuevo contacto en Bitrix24 (si no existe)
+    if (shouldRespond === 'create') {
+      await createContactInBitrix24(chatId, null || 'Cliente WhatsApp', message);
     }
 
   } catch (error) {
     console.error(`❌ Error procesando mensajes agrupados para ${chatId}:`, error);
-    pendingResponses.delete(chatId);
   }
-}
-
-// Función para agregar mensaje al buffer
-function addToBuffer(chatId, messageData, content) {
-  if (!messageBuffers.has(chatId)) {
-    messageBuffers.set(chatId, []);
-  }
-
-  // Agregar mensaje al buffer
-  messageBuffers.get(chatId).push({
-    content: content,
-    authorName: messageData.authorName,
-    timestamp: Date.now()
-  });
-
-  console.log(`📥 Mensaje agregado al buffer para ${chatId} (total en buffer: ${messageBuffers.get(chatId).length})`);
-
-  // Si ya hay una respuesta pendiente, no programar nuevo timeout
-  if (pendingResponses.has(chatId)) {
-    console.log(`⏸️ Respuesta pendiente para ${chatId}, esperando a que se complete...`);
-    return;
-  }
-
-  processBufferedMessages(chatId);
 }
 
 app.post('/webhook', async (req, res) => {
@@ -321,16 +123,16 @@ app.post('/webhook', async (req, res) => {
         return res.status(200).json({ status: 200 });
       }
       console.log('No se recibió ningún mensaje');
-      return res.status(200).json({ status: 200 });
+      return res.status(200).send("OK");;
     }
 
     let message = messages[0];
-    const { chatId, type, sentFromApp, authorName, authorId, status, isEcho } = message;
+    const { chatId, type, sentFromApp, authorName, authorId, status, isEcho, text, messageId, channelId } = message;
 
-    if (chatId !== '19545480212' && chatId !== '584129253568') {
-      console.log('chatId', chatId, 'Es diferente a 19545480212');
-      return res.status(200).json({ status: 200 });
-    }
+    // if (chatId !== '19545480212' && chatId !== '584129253568') {
+    //   console.log('chatId', chatId, 'Es diferente a 19545480212');
+    //   return res.status(200).send("OK");;
+    // }
 
     // Mensajes de admin se procesan inmediatamente
     if (authorId && parseInt(authorId) > 0) {
@@ -345,19 +147,31 @@ app.post('/webhook', async (req, res) => {
           console.log(resumenHistorial);
           console.log('\n' + '-'.repeat(50) + '\n');
 
-          await updateLeadField(chatId, resumenHistorial);
+          await updateLeadField(chatId, resumenHistorial, channelId);
         }
 
       } catch (error) {
         console.error('Error al procesar mensaje de admin:', error);
       }
 
-      return res.status(200).json({ status: 200 });
+      return res.status(200).send("OK");;
     }
 
     if (sentFromApp || status == 'read' || authorName === 'Admin' || status === 'delivered' || status !== 'inbound' || isEcho) {
-      console.log('mensaje no es de un usuario real o ya fue procesado número: ' + chatId);
-      return res.status(200).json({ status: 200 });;
+      console.log('El mensaje no es de un usuario real o ya fue procesado número: ' + chatId);
+      return res.status(200).send("OK");
+    }
+
+    let idSecuencia = Date.now()
+
+    if (!messageBuffers.has(chatId)) {
+      messageBuffers.set(chatId, { messagesIds: [], message: text, idSecuencia, channelId });
+    }
+    else {
+      messageBuffers.get(chatId).messagesIds.push(messageId);
+      messageBuffers.get(chatId).message += messageBuffers.get(chatId).message == '' ? text : '\n' + text
+      messageBuffers.get(chatId).idSecuencia = idSecuencia
+      messageBuffers.get(chatId).channelId = channelId
     }
 
     let messageContent = '';
@@ -398,6 +212,7 @@ app.post('/webhook', async (req, res) => {
         const transcription = await transcribeAudio(filePath);
         messageContent = transcription;
         console.log(`📝 Transcripción del audio: ${transcription}`);
+        messageBuffers.get(chatId).message += messageBuffers.get(chatId).message == '' ? transcription : '\n' + transcription
 
         try {
           fs.unlinkSync(filePath);
@@ -414,22 +229,24 @@ app.post('/webhook', async (req, res) => {
     }
 
     if (!messageContent) {
-      return res.status(200).json({ status: 200 });
+      return res.status(200).send("OK");
     }
 
     // Agregar mensaje al buffer para agruparlo
-    addToBuffer(chatId, {
-      message,
-      chatId,
-      type,
-      sentFromApp,
-      authorName,
-      authorId,
-      status,
-      isEcho
-    }, messageContent);
+    // addToBuffer(chatId, {
+    //   message,
+    //   chatId,
+    //   type,
+    //   sentFromApp,
+    //   authorName,
+    //   authorId,
+    //   status,
+    //   isEcho
+    // }, messageContent);
 
-    return res.status(200).json({ status: 200 });
+    processBufferedMessages(chatId, idSecuencia, channelId);
+
+    return res.status(200).send("OK");
 
   } catch (error) {
     console.error('Error en webhook:', error);
@@ -488,7 +305,7 @@ async function runWorkflowMoverASeguimiento2(phoneNumber) {
 
       if (lead.STATUS_ID === "UC_11XRR5") {
         await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
-          TEMPLATE_ID: 771,
+          TEMPLATE_ID: 773,
           DOCUMENT_ID: [
             'crm',
             'CCrmDocumentLead',
@@ -512,61 +329,91 @@ async function checkContactAndFieldValue(phoneNumber) {
   const horaFinLaboral = 19;
   const fueraDeHorario = horaActual < horaInicioLaboral || horaActual >= horaFinLaboral;
 
-  try {
-    const leadResponse = await axios.get(
-      `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
-    );
+  // Función para buscar el lead
+  const buscarLead = async () => {
+    try {
+      const leadResponse = await axios.get(
+        `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
+      );
 
-    if (leadResponse.data.result && leadResponse.data.result.length > 0) {
-      let lead = leadResponse.data.result[leadResponse.data.result.length - 1];
+      if (leadResponse.data.result && leadResponse.data.result.length > 0) {
+        let lead = leadResponse.data.result[leadResponse.data.result.length - 1];
 
-      if (lead.STATUS_ID === "UC_EMY4OP") {
-        await axios.post(`${BITRIX24_API_URL}crm.lead.update`, {
-          id: lead.ID,
-          fields: {
-            "ASSIGNED_BY_ID": lead.UF_CRM_1755093738 || lead.ASSIGNED_BY_ID,
-            "STATUS_ID": "UC_11XRR5"
+        if (lead.STATUS_ID === "UC_EMY4OP") {
+          await axios.post(`${BITRIX24_API_URL}crm.lead.update`, {
+            id: lead.ID,
+            fields: {
+              "ASSIGNED_BY_ID": lead.UF_CRM_1755093738 || lead.ASSIGNED_BY_ID,
+              "STATUS_ID": "UC_11XRR5"
+            }
+          });
+          console.log('Se le transfirió a un agente');
+          if (fueraDeHorario) {
+            return 'Fuera de horario';
           }
-        });
-        console.log('Se le transfirió a un agente');
-        if (fueraDeHorario) {
-          return 'Fuera de horario';
+          return false;
         }
-        return false;
-      }
-      else if (lead.STATUS_ID === "UC_11XRR5") {
-        await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
-          TEMPLATE_ID: 771,
-          DOCUMENT_ID: [
-            'crm',
-            'CCrmDocumentLead',
-            `LEAD_${lead.ID}`
-          ],
-        });
-        return false;
+        else if (lead.STATUS_ID === "UC_11XRR5") {
+          // await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
+          //   TEMPLATE_ID: 773,
+          //   DOCUMENT_ID: [
+          //     'crm',
+          //     'CCrmDocumentLead',
+          //     `LEAD_${lead.ID}`
+          //   ],
+          // });
+          return false;
+        }
+
+        for (const lead of leadResponse.data.result) {
+          if (lead[BITRIX24_LIST_FIELD_ID] === '2709' && (lead.STATUS_ID == "UC_61ZU35" || lead.STATUS_ID == "UC_EMY4OP")) {
+            return true;
+          }
+        }
       }
 
-      for (const lead of leadResponse.data.result) {
-        if (lead[BITRIX24_LIST_FIELD_ID] === '2709') {
-          return true;
-        }
-      }
+      return null; // Retorna null cuando no encuentra el lead para continuar el bucle
+
+    } catch (error) {
+      console.error('Error al verificar lead/contacto en Bitrix24:', error.response?.data || error.message);
+      throw error;
     }
+  };
 
-    return false;
-  } catch (error) {
-    console.error('Error al verificar lead/contacto en Bitrix24:', error.response?.data || error.message);
-    throw error;
+  // Bucle de búsqueda con máximo 24 intentos (2 minutos)
+  let intentos = 0;
+  const maxIntentos = 48;
+  const intervalo = 5000; // 5 segundos
+
+  while (intentos < maxIntentos) {
+    const resultado = await buscarLead();
+    
+    // Si se encuentra un resultado válido (true, false o string), lo retornamos
+    if (resultado !== null) {
+      return resultado;
+    }
+    
+    intentos++;
+    
+    // Si no es el último intento, esperamos 5 segundos
+    if (intentos < maxIntentos) {
+      console.log(`Lead no encontrado. Intento ${intentos}/${maxIntentos}. Esperando 5 segundos...`);
+      await new Promise(resolve => setTimeout(resolve, intervalo));
+    }
   }
+
+  console.log('Lead no encontrado después de 24 intentos (2 minutos)');
+  return false;
 }
 
 // Función para crear un nuevo contacto en Bitrix24
-async function createContactInBitrix24(phoneNumber, name) {
+async function createContactInBitrix24(phoneNumber, name, messageCustomer) {
   try {
     const contactData = {
       NAME: name || 'Cliente WhatsApp',
       PHONE: [{ VALUE: `+${phoneNumber}`, VALUE_TYPE: 'WORK' }],
-      [BITRIX24_LIST_FIELD_ID]: BITRIX24_LIST_VALUE // Asignar valor al campo de lista
+      [BITRIX24_LIST_FIELD_ID]: BITRIX24_LIST_VALUE, // Asignar valor al campo de lista
+      UF_CRM_1756909989: messageCustomer
     };
 
     const response = await axios.post(`${BITRIX24_API_URL}crm.contact.add`, {

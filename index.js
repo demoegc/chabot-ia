@@ -87,7 +87,12 @@ async function processBufferedMessages(chatId, idSecuencia, channelId) {
     let info = {};
     if (shouldRespond === 'Fuera de horario') {
       info = await responderFueraDeHorario(chatId, message);
-    } else {
+    }
+    else if (shouldRespond === 'create') {
+      await createContactInBitrix24(chatId, null || 'Cliente WhatsApp', message, channelId);
+      return
+    }
+    else {
       info = await responderConPdf(message, chatId, channelId);
     }
 
@@ -102,11 +107,6 @@ async function processBufferedMessages(chatId, idSecuencia, channelId) {
     await sendMessage(respuesta, chatId, null, messageBuffers.get(chatId).channelId);
     updateContactHistory(chatId, history, historialBitrix, channelId);
     console.log('✅ Respuesta enviada:', respuesta);
-
-    // Crear nuevo contacto en Bitrix24 (si no existe)
-    if (shouldRespond === 'create') {
-      await createContactInBitrix24(chatId, null || 'Cliente WhatsApp');
-    }
 
   } catch (error) {
     console.error(`❌ Error procesando mensajes agrupados para ${chatId}:`, error);
@@ -254,6 +254,65 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
+app.post('/resend-message', async (req, res) => {
+
+  const { phone } = req.body;
+
+  try {
+
+    let chatId = phone.split(',')[0].trim();
+    chatId = chatId.replace(/\D/g, '');
+
+    let message;
+    let channelId;
+
+    try {
+
+      const contactResponse = await axios.get(
+        `${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=UF_CRM_1756909989&SELECT[]=UF_CRM_68A8DCEC8EF2D`
+      );
+
+      if (contactResponse.data.result && contactResponse.data.result.length > 0) {
+        const contact = contactResponse.data.result[contactResponse.data.result.length - 1];
+
+        message = contact.UF_CRM_1756909989;
+        channelId = contact.UF_CRM_68A8DCEC8EF2D;
+      }
+
+    } catch (error) {
+      console.log('Error al buscar contacto en B24:', error)
+    }
+
+    // Verificar el contacto en Bitrix24 y el valor del campo específico
+    const shouldRespond = await checkContactAndFieldValue(chatId);
+    console.log('shouldRespond', shouldRespond);
+
+    if (!shouldRespond && typeof shouldRespond === "boolean") {
+      console.log(`No se responderá al contacto ${chatId} (el campo no tiene el valor requerido o el contacto no existe)`);
+      return;
+    }
+
+    // Procesar mensaje combinado
+    let info = {};
+    if (shouldRespond === 'Fuera de horario') {
+      info = await responderFueraDeHorario(chatId, message);
+    }
+    else {
+      info = await responderConPdf(message, chatId, channelId);
+    }
+
+    const { respuesta, history, historialBitrix } = info;
+
+    await sendMessage(respuesta, chatId, null, channelId);
+    updateContactHistory(chatId, history, historialBitrix, channelId);
+    console.log('✅ Respuesta enviada:', respuesta);
+
+  } catch (error) {
+    console.error(`❌ Error procesando mensajes agrupados para ${chatId}:`, error);
+  }
+
+})
+
 // Función para calcular el tiempo de espera basado en palabras
 function calcularTiempoEscritura(texto) {
   const palabras = texto.trim().split(/\s+/).length;
@@ -339,11 +398,11 @@ async function checkContactAndFieldValue(phoneNumber) {
       if (leadResponse.data.result && leadResponse.data.result.length > 0) {
         let lead = leadResponse.data.result[leadResponse.data.result.length - 1];
 
-        if (lead.STATUS_ID === "UC_EMY4OP") {
+        if (lead.STATUS_ID === "UC_EMY4OP" && lead.STATUS_ID !== "UC_11XRR5") {
           await axios.post(`${BITRIX24_API_URL}crm.lead.update`, {
             id: lead.ID,
             fields: {
-              "ASSIGNED_BY_ID": lead.UF_CRM_1755093738 || lead.ASSIGNED_BY_ID,
+              "ASSIGNED_BY_ID": lead.UF_CRM_1755093738,
               "STATUS_ID": "UC_11XRR5"
             }
           });
@@ -354,14 +413,6 @@ async function checkContactAndFieldValue(phoneNumber) {
           return false;
         }
         else if (lead.STATUS_ID === "UC_11XRR5") {
-          // await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
-          //   TEMPLATE_ID: 773,
-          //   DOCUMENT_ID: [
-          //     'crm',
-          //     'CCrmDocumentLead',
-          //     `LEAD_${lead.ID}`
-          //   ],
-          // });
           return false;
         }
 
@@ -387,32 +438,59 @@ async function checkContactAndFieldValue(phoneNumber) {
 
   while (intentos < maxIntentos) {
     const resultado = await buscarLead();
-    
+
     // Si se encuentra un resultado válido (true, false o string), lo retornamos
     if (resultado !== null) {
       return resultado;
     }
-    
+
     intentos++;
-    
+
     // Si no es el último intento, esperamos 5 segundos
     if (intentos < maxIntentos) {
-      console.log(`Lead no encontrado. Intento ${intentos}/${maxIntentos}. Esperando 5 segundos...`);
+      console.log(`${phoneNumber} Lead no encontrado. Intento ${intentos}/${maxIntentos}. Esperando 5 segundos...`);
       await new Promise(resolve => setTimeout(resolve, intervalo));
     }
   }
 
-  console.log('Lead no encontrado después de 24 intentos (2 minutos)');
-  return false;
+  console.log(`${phoneNumber} Lead no encontrado después de ${maxIntentos} intentos de ${intervalo} segundos. Buscando contacto...`);
+
+  // Buscar contacto por número de teléfono
+  try {
+    const contactResponse = await axios.get(
+      `${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}`
+    );
+
+    if (contactResponse.data.result && contactResponse.data.result.length > 0) {
+      // const contact = contactResponse.data.result[0];
+      // console.log(`✅ Contacto encontrado con ID: ${contact.ID}`);
+
+      // // Verificar si el contacto tiene el campo con el valor requerido
+      // if (contact[BITRIX24_LIST_FIELD_ID] === BITRIX24_LIST_VALUE) {
+      //   return true;
+      // } else {
+      //   return false;
+      // }
+    } else {
+      console.log('Contacto no encontrado. Se debe crear uno nuevo.');
+      return 'create'; // Retornar 'create' para indicar que se debe crear un nuevo contacto
+    }
+    return false
+  } catch (error) {
+    console.error('Error al buscar contacto en Bitrix24:', error.response?.data || error.message);
+    return false; // En caso de error, también retornar 'create'
+  }
 }
 
 // Función para crear un nuevo contacto en Bitrix24
-async function createContactInBitrix24(phoneNumber, name) {
+async function createContactInBitrix24(phoneNumber, name, messageCustomer, channelId) {
   try {
     const contactData = {
       NAME: name || 'Cliente WhatsApp',
       PHONE: [{ VALUE: `+${phoneNumber}`, VALUE_TYPE: 'WORK' }],
-      [BITRIX24_LIST_FIELD_ID]: BITRIX24_LIST_VALUE // Asignar valor al campo de lista
+      [BITRIX24_LIST_FIELD_ID]: BITRIX24_LIST_VALUE, // Asignar valor al campo de lista
+      UF_CRM_1756909989: messageCustomer,
+      UF_CRM_68A8DCEC8EF2D: channelId
     };
 
     const response = await axios.post(`${BITRIX24_API_URL}crm.contact.add`, {
@@ -427,7 +505,6 @@ async function createContactInBitrix24(phoneNumber, name) {
   }
 }
 
-// Función para actualizar un campo de un contacto en Bitrix24
 // Función para actualizar un campo de un contacto en Bitrix24
 async function updateContactField(phoneNumber, fieldId, fieldValue, resumenHistorial) {
   try {
