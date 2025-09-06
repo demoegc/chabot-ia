@@ -52,66 +52,58 @@ async function generarMensajeSeguimiento(chatId, trackingNumber) {
         // }
 
         // 4. Generar mensaje de seguimiento
-        const prompt = `Basado en el siguiente historial de conversación, genera un mensaje de seguimiento.
-Quiero que actúes como un redactor de mensajes de seguimiento para un chatbot de WhatsApp especializado en trámites migratorios (asilo, permiso de trabajo y petición familiar). El objetivo es contactar prospectos que mostraron interés pero no han avanzado. Los mensajes deben:
-1.    Tener un tono humano, cálido, cercano y empático.
-2.    Evitar que parezcan persecución o presión directa.
-3.    Incluir beneficios claros y atractivos del trámite específico.
-4.    Generar la sensación de que la persona podría perder una oportunidad importante si no avanza.
-5.    Terminar con una pregunta abierta que invite a la respuesta sin forzarla.
-6.    Usar lenguaje sencillo y frases cortas para WhatsApp.
-7.    Evitar expresiones legales o que den la impresión de asesoría jurídica.
-8.    En el caso de petición familiar, si el cliente está casado con un(a) ciudadano(a) estadounidense, el mensaje debe personalizarse con base en esa información.
-9.    Si tienes el nombre del cliente, siempre llámalo por su primer nombre en el saludo.
+        const prompt = `
+Basado en el siguiente historial de conversación, genera un ÚNICO mensaje de seguimiento.
 
-Por favor, genera tres ejemplos distintos de mensajes para cada trámite, siguiendo estas reglas:
-Para ASILO usa solouo de estos ejemplos a continuación como referencia:
+Quiero que actúes como un redactor de mensajes de seguimiento para un chatbot de WhatsApp especializado en trámites migratorios (asilo, permiso de trabajo y petición familiar). El objetivo es contactar prospectos que mostraron interés pero no han avanzado. 
 
-Ejemplo 1. Hola [Nombre] 😊 Quería contarte que varias personas que iniciaron su solicitud de asilo hace poco ya tienen su permiso de trabajo y están encontrando empleos estables. Es una gran oportunidad para empezar a construir seguridad aquí en EE.UU. ¿Quieres que te explique cómo podrías iniciar hoy?
+Reglas:
+1. Elige SOLO UN ejemplo de los que te doy como referencia para el trámite correcto (asilo, permiso de trabajo o petición familiar).
+2. Nunca mezcles ejemplos de distintos trámites.
+3. El mensaje debe:
+   - Ser humano, cálido y empático.
+   - No sonar a persecución ni presión directa.
+   - Resaltar beneficios claros del trámite.
+   - Dar sensación de oportunidad que no debe perderse.
+   - Terminar con una pregunta abierta.
+   - Usar frases cortas y sencillas para WhatsApp.
+   - Evitar lenguaje legal o de asesoría jurídica.
+   - Si es petición familiar y el cliente está casado/a con ciudadano/a de EE.UU., personaliza el mensaje con esa información.
+   - Si tienes el nombre, saluda siempre por el primer nombre.
 
-Ejemplo 2. ¡Hola [Nombre]! 👋 Muchas personas que presentaron su asilo ya están trabajando legalmente mientras esperan la decisión. Así han podido mejorar sus ingresos y estabilidad. No quisiera que te quedaras fuera de esa posibilidad. ¿Quieres que te cuente cómo lograrlo?
+Ejemplos de referencia:
 
-Ejemplo 3. Hola [Nombre] 😊 Me alegra ver que cada vez más personas que solicitan asilo logran obtener su permiso de trabajo y avanzar en sus metas aquí en EE.UU. A veces, dar ese primer paso hace toda la diferencia. ¿Quieres que retomemos tu caso?
+ASILO:
+- Ejemplo 1. Hola [Nombre] 😊 Quería contarte que varias personas que iniciaron su solicitud de asilo hace poco ya tienen su permiso de trabajo y están encontrando empleos estables. Es una gran oportunidad para empezar a construir seguridad aquí en EE.UU. ¿Quieres que te explique cómo podrías iniciar hoy?
+- Ejemplo 2. ¡Hola [Nombre]! 👋 Muchas personas que presentaron su asilo ya están trabajando legalmente mientras esperan la decisión. Así han podido mejorar sus ingresos y estabilidad. No quisiera que te quedaras fuera de esa posibilidad. ¿Quieres que te cuente cómo lograrlo?
+- Ejemplo 3. Hola [Nombre] 😊 Me alegra ver que cada vez más personas que solicitan asilo logran obtener su permiso de trabajo y avanzar en sus metas aquí en EE.UU. A veces, dar ese primer paso hace toda la diferencia. ¿Quieres que retomemos tu caso?
 
+PERMISO DE TRABAJO:
+- Ejemplo 1. ¡Hola [Nombre]! 👋 Con tu permiso de trabajo vigente podrías aplicar a mejores empleos, con más ingresos y beneficios. Muchos de nuestros clientes que lo renovaron ya están aprovechando nuevas oportunidades. ¿Quieres que te guíe para que no pierdas esa ventaja?
+- Ejemplo 2. Hola [Nombre] 😊 Tener el permiso de trabajo al día puede abrirte la puerta a empleos mejor pagados y con más estabilidad. Sería una pena que se venciera y frenar tus planes. ¿Quieres que te explique cómo renovarlo a tiempo?
+- Ejemplo 3. ¡Hola [Nombre]! 😃 Recuerda que con tu permiso vigente puedes trabajar legalmente, crecer profesionalmente y acceder a beneficios que sin él no tendrías. Si lo dejamos vencer, puede complicar tu situación. ¿Te cuento cómo evitarlo?
 
-Para PERMISO DE TRABAJO usa solouo de estos ejemplos a continuación como referencia:
+PETICIÓN FAMILIAR (casado con ciudadano/a estadounidense):
+- Ejemplo 1. Hola [Nombre] 😊 Recuerdo que me comentaste que estás casado(a) con un(a) ciudadano(a) estadounidense. Este es un buen momento para iniciar la petición, ya que el proceso suele ser más rápido y podrías obtener tu residencia antes de lo que imaginas. ¿Quieres que retomemos lo que hablamos y avancemos con tu caso?
+- Ejemplo 2. ¡Hola [Nombre]! 👋 Como estás casado(a) con un(a) ciudadano(a) de EE.UU., tu trámite de residencia puede avanzar más rápido que en otros casos. Muchas parejas ya están disfrutando de este beneficio. ¿Quieres que te explique los pasos para que no pierdas tiempo?
+- Ejemplo 3. Hola [Nombre] 😊 Por tu matrimonio con un(a) ciudadano(a) estadounidense, tienes la ventaja de que el proceso para la residencia es más ágil. Entre más pronto lo iniciemos, más pronto podrás disfrutar de la estabilidad que trae. ¿Quieres que retomemos tu solicitud?
 
-Ejemplo 1. ¡Hola [Nombre]! 👋 Con tu permiso de trabajo vigente podrías aplicar a mejores empleos, con más ingresos y beneficios. Muchos de nuestros clientes que lo renovaron ya están aprovechando nuevas oportunidades. ¿Quieres que te guíe para que no pierdas esa ventaja?
-
-Ejemplo 2. Hola [Nombre] 😊 Tener el permiso de trabajo al día puede abrirte la puerta a empleos mejor pagados y con más estabilidad. Sería una pena que se venciera y frenar tus planes. ¿Quieres que te explique cómo renovarlo a tiempo?
-
-Ejemplo 3. ¡Hola [Nombre]! 😃 Recuerda que con tu permiso vigente puedes trabajar legalmente, crecer profesionalmente y acceder a beneficios que sin él no tendrías. Si lo dejamos vencer, puede complicar tu situación. ¿Te cuento cómo evitarlo?
-
-
-Para PETICIÓN FAMILIAR usa solouo de estos ejemplos a continuación como referencia:
-
-(Versión para cliente casado/a con ciudadano/a estadounidense)
-
-Ejemplo 1. Hola [Nombre] 😊 Recuerdo que me comentaste que estás casado(a) con un(a) ciudadano(a) estadounidense. Este es un buen momento para iniciar la petición, ya que el proceso suele ser más rápido y podrías obtener tu residencia antes de lo que imaginas. ¿Quieres que retomemos lo que hablamos y avancemos con tu caso?
-
-Ejemplo 2. ¡Hola [Nombre]! 👋 Como estás casado(a) con un(a) ciudadano(a) de EE.UU., tu trámite de residencia puede avanzar más rápido que en otros casos. Muchas parejas ya están disfrutando de este beneficio. ¿Quieres que te explique los pasos para que no pierdas tiempo?
-
-Ejemplo 3. Hola [Nombre] 😊 Por tu matrimonio con un(a) ciudadano(a) estadounidense, tienes la ventaja de que el proceso para la residencia es más ágil. Entre más pronto lo iniciemos, más pronto podrás disfrutar de la estabilidad que trae. ¿Quieres que retomemos tu solicitud?
-
-NOTA IMPORTANTE: Solo pon unos de los ejemplos correspondientes al trámite que el cliente haya mencionado en el historial. No mezcles ejemplos de diferentes trámites. Por ejemplo: Ejemplo 1. Hola [Nombre] 😊 Recuerdo que me comentaste que estás casado(a) con un(a) ciudadano(a) estadounidense. Este es un buen momento para iniciar la petición, ya que el proceso suele ser más rápido y podrías obtener tu residencia antes de lo que imaginas. ¿Quieres que retomemos lo que hablamos y avancemos con tu caso?
-No coloques todos los ejemplos juntos, solo uno.
+NOTA IMPORTANTE:
+- Genera **solo un mensaje de seguimiento cada vez** (no tres).
+- No repitas siempre el mismo ejemplo; varía entre ellos en usos posteriores para que parezca más natural.
+- Si no hay historial de conversación, genera un mensaje genérico y cálido, como: 
+  "Hola, ¿cómo has estado? Solo quería saber si aún estás interesado en avanzar con tu trámite migratorio. Estoy aquí para ayudarte cuando decidas continuar."
 
 Historial de conversación:
 ${historialBitrix}
-
 
 ${resumenHistorial
                 ? 'Resumen de la conversación:\n' + resumenHistorial
                 : ''
             }
 
-No repitas siempre los mismo cada vez que se haga un seguimiento, para que parezca más natural el seguimiento
-
-NOTA IMPORTANTE:
-- Si no tienes un historial de conversación, genera un mensaje de seguimiento genérico y cálido, como este ejemplo: Hola, ¿cómo has estado? Solo quería saber si aún estás interesado en avanzar con tu trámite migratorio. Estoy aquí para ayudarte cuando decidas continuar.
-- Recuerda que el mensaje que generes, será enviado directamente al cliente por WhatsApp, así que debe ser muy humano y natural, y no respondas como si fueras una inteligencia artificial.
-
-Mensaje de seguimiento:`;
+Mensaje de seguimiento:
+`;
 
         const response = await openai.chat.completions.create({
             model: "gpt-5",
