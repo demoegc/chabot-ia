@@ -312,15 +312,16 @@ async function notificarTransferenciaAgente(chatId, mensajeTransferencia) {
     try {
         // 1. Obtener información del contacto/lead
         const leadResponse = await axios.get(
-            `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=ASSIGNED_BY_ID&SELECT[]=UF_CRM_1755093738`
+            `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=TITLE&SELECT[]=CONTACT_ID&SELECT[]=ASSIGNED_BY_ID&SELECT[]=UF_CRM_1755093738`
         );
 
-        let entityId, isContact = false, assignedTo;
+        let entityId, isContact = false, assignedTo, title;
 
         if (leadResponse.data.result && leadResponse.data.result.length > 0) {
             const lead = leadResponse.data.result[leadResponse.data.result.length - 1];
             entityId = lead.ID;
             assignedTo = lead.UF_CRM_1755093738 || lead.ASSIGNED_BY_ID;
+            title = lead.TITLE;
 
             // if (lead.CONTACT_ID && lead.CONTACT_ID !== '0') {
             //     const contactResponse = await axios.get(
@@ -341,7 +342,7 @@ async function notificarTransferenciaAgente(chatId, mensajeTransferencia) {
         }
 
         // 2. Crear notificación en Bitrix24
-        const notificationText = `Se te ha transferido el cliente con el número de teléfono ${chatId}`;
+        const notificationText = `Se te ha transferido el cliente ${title}\n Lead: https://tuagentedeinmigracion.bitrix24.co/crm/lead/details/${entityId}/`;
 
         // await axios.post(`${BITRIX24_API_URL}im.notify`, {
         //     to: assignedTo,
