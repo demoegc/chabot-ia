@@ -184,7 +184,8 @@ app.post('/webhook', async (req, res) => {
     if (type === 'text') {
       messageContent = message.text;
       console.log(`📩 Mensaje de texto de ${chatId}: ${messageContent}`);
-    } else if (type === 'audio') {
+    }
+    else if (type === 'audio') {
       const contentUri = message.contentUri;
       console.log(`🎤 Nota de voz recibida de ${chatId}`);
 
@@ -230,6 +231,13 @@ app.post('/webhook', async (req, res) => {
         // Aún así responder para no dejar al usuario sin respuesta
         messageContent = "[Mensaje de voz no procesado completamente]";
       }
+    }
+    else {
+      const resumenHistorial = await obtenerResumenHistorial(chatId);
+      console.log(`El cliente a enviado un documento u otro tipo de archivo que no es texto o audio`);
+
+      await updateLeadField(chatId, resumenHistorial, channelId);
+      return res.status(200).send("OK");
     }
 
     if (!messageContent) {
@@ -478,7 +486,7 @@ async function checkContactAndFieldValue(phoneNumber) {
       // } else {
       //   return false;
       // }
-    } else if(lead.STATUS_ID == "UC_61ZU35") {
+    } else if (lead.STATUS_ID == "UC_61ZU35") {
       console.log('Contacto no encontrado. Se debe crear uno nuevo.');
       return 'create'; // Retornar 'create' para indicar que se debe crear un nuevo contacto
     }

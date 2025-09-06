@@ -419,6 +419,8 @@ async function updateLeadField(phoneNumber, resumenHistorial, channelId) {
             axios.post(`${BITRIX24_API_URL}crm.timeline.comment.add`, commentData)
         ]);
 
+        notificarTransferenciaAgente(phoneNumber)
+
         console.log(`🔄 Lead ${leadId} actualizado. Campo UF_CRM_1752006453 establecido a 2711`);
         return updateResponse.data.result;
     } catch (error) {
