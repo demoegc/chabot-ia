@@ -113,6 +113,8 @@ async function processBufferedMessages(chatId, idSecuencia, channelId) {
   }
 }
 
+const modifyNumber = (number, position = 3) => number.startsWith('+52') ? number.slice(0, position) + '1' + number.slice(position) : number
+
 app.post('/webhook', async (req, res) => {
   try {
     const { messages } = req.body;
@@ -127,7 +129,9 @@ app.post('/webhook', async (req, res) => {
     }
 
     let message = messages[0];
-    const { chatId, type, sentFromApp, authorName, authorId, status, isEcho, text, messageId, channelId } = message;
+    let { chatId, type, sentFromApp, authorName, authorId, status, isEcho, text, messageId, channelId } = message;
+
+    chatId = modifyNumber(chatId)
 
     // if (chatId !== '19545480212' && chatId !== '584129253568') {
     //   console.log('chatId', chatId, 'Es diferente a 19545480212');
