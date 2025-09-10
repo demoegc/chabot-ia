@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 const axios = require("axios");
-const { responderConPdf, obtenerResumenHistorial, generarMensajeSeguimiento, updateContactHistory, updateLeadField, responderFueraDeHorario } = require("./consulta_empresa.js");
+const { responderConPdf, obtenerResumenHistorial, generarMensajeSeguimiento, updateContactHistory, updateLeadField, responderFueraDeHorario, notificarTransferenciaAgente } = require("./consulta_empresa.js");
 const sendMessage = require('./sendMessage.js')
 const moment = require('moment-timezone');
 
@@ -28,7 +28,7 @@ const BITRIX24_LIST_VALUE = '2223'; // Yes
 const BITRIX24_ADMIN_VALUE = '2225'; // Valor para Admin
 
 app.get('/', async (req, res) => {
-  return res.json({ message: 'Última cambio manual del servidor el día 03/09/2025 12:39' })
+  return res.json({ message: 'Última cambio manual del servidor el día 10/09/2025 15:35' })
 })
 
 app.get('/send-message', async (req, res) => {
@@ -425,6 +425,7 @@ async function checkContactAndFieldValue(phoneNumber) {
           if (fueraDeHorario) {
             return 'Fuera de horario';
           }
+          notificarTransferenciaAgente(phoneNumber)
           return false;
         }
         else if (lead.STATUS_ID === "UC_11XRR5") {

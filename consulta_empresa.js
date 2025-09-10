@@ -745,5 +745,6 @@ module.exports = {
     guardarResumenHistorial,
     obtenerResumenHistorial,
     updateLeadField,
-    responderFueraDeHorario
+    responderFueraDeHorario,
+    notificarTransferenciaAgente
 };
