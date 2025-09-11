@@ -284,8 +284,8 @@ Si ya se le dijo al cliente cuando le gustaría que lo contacten, y el cliente y
 Debes decir "SI" si el cliente muestra enojo o frustración
 Si ya el cliente ha enviado dos mensajes, debes decir "SI"
 
-Contexto de conversación:
-${ultimosDosMensajes}
+Historial completo:
+${historialBitrix}
 `;
 
         const response = await openai.chat.completions.create({
