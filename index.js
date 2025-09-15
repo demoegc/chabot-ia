@@ -50,6 +50,31 @@ app.post('/mensaje-recordatorio', async (req, res) => {
 
     chatId = chatId.replace(/\D/g, '');
 
+    const zonaHoraria = 'America/New_York';
+    const horaEnZona4 = moment().tz(zonaHoraria);
+    const soloHora24h = horaEnZona4.format('H');
+    console.log(`Hora en formato de 24h: ${soloHora24h}`);
+
+    if (soloHora24h < 8) {
+      console.log('Se iba a enviar seguimiento antes del horario laboral, hora: ' + soloHora24h + '\n' + 'Teléfono del cliente: ' + chatId)
+      const leadResponse = await axios.get(
+        `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID`
+      );
+
+      if (leadResponse.data.result && leadResponse.data.result.length > 0) {
+        const lead = leadResponse.data.result[leadResponse.data.result.length - 1];
+        await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
+          TEMPLATE_ID: 797,
+          DOCUMENT_ID: [
+            'crm',
+            'CCrmDocumentLead',
+            `LEAD_${lead.ID}`
+          ],
+        });
+      }
+      return res.json({ message: 'Tiene que esperar 8 horas para que le mensaje sea enviado' })
+    }
+
     const { respuesta } = await generarMensajeSeguimiento(chatId, trackingNumber);
 
     // Enviar respuesta
