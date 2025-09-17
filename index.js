@@ -503,34 +503,34 @@ async function checkContactAndFieldValue(phoneNumber) {
     );
 
     if (contactResponse.data.result && contactResponse.data.result.length > 0) {
-      const contact = contactResponse.data.result[contactResponse.data.result.length - 1];
-        console.log('Buscando el contacto')
-      if (contact.UF_CRM_68A8DCEC8EF2D == null || contact.UF_CRM_68A8DCEC8EF2D == '') {
-        console.log('contacto encontrado')
+      // const contact = contactResponse.data.result[contactResponse.data.result.length - 1];
+      //   console.log('Buscando el contacto')
+      // if (contact.UF_CRM_68A8DCEC8EF2D == null || contact.UF_CRM_68A8DCEC8EF2D == '') {
+      //   console.log('contacto encontrado')
 
-        let titleLead = contact.NAME + (contact.LAST_NAME ? ' ' + contact.LAST_NAME : '')
+      //   let titleLead = contact.NAME + (contact.LAST_NAME ? ' ' + contact.LAST_NAME : '')
 
-        await axios.post(`${BITRIX24_API_URL}crm.lead.add`,
-          {
-            fields:
-            {
-              TITLE: titleLead,
-              NAME: contact.NAME,
-              LAST_NAME: contact.LAST_NAME,
-              STATUS_ID: 'UC_61ZU35',
-              ASSIGNED_BY_ID: 9795,
-              PHONE: [
-                {
-                  VALUE: `+${phoneNumber}`,
-                  VALUE_TYPE: 'WORK',
-                },
-              ]
-            }
-          }
-        )
+      //   await axios.post(`${BITRIX24_API_URL}crm.lead.add`,
+      //     {
+      //       fields:
+      //       {
+      //         TITLE: titleLead,
+      //         NAME: contact.NAME,
+      //         LAST_NAME: contact.LAST_NAME,
+      //         STATUS_ID: 'UC_61ZU35',
+      //         ASSIGNED_BY_ID: 9795,
+      //         PHONE: [
+      //           {
+      //             VALUE: `+${phoneNumber}`,
+      //             VALUE_TYPE: 'WORK',
+      //           },
+      //         ]
+      //       }
+      //     }
+      //   )
         
-        return false
-      }
+      //   return false
+      // }
     } else if (lead.STATUS_ID == "UC_61ZU35") {
       console.log('Contacto no encontrado. Se debe crear uno nuevo.');
       return 'create'; // Retornar 'create' para indicar que se debe crear un nuevo contacto
