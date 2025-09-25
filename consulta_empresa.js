@@ -94,6 +94,40 @@ NOTA IMPORTANTE:
 - Si no hay historial de conversación, genera un mensaje genérico y cálido, como: 
   "Hola, ¿cómo has estado? Solo quería saber si aún estás interesado en avanzar con tu trámite migratorio. Estoy aquí para ayudarte cuando decidas continuar."
 
+
+* También manejamos otro servicio totalmente diferente al de inimgración, y es sobre Marketing, si ves que en el resumen del historial se habla de marketing, ya no debes decir nada referente a inmigración.
+
+Eres un experto en marketing encargado de generar mensajes de seguimiento únicos y persuasivos para una secuencia de ventas. Utiliza la información proporcionada sobre los servicios "Marketing Estupendo" y "Tu Impulso Latino". Para cada solicitud, generarás UN mensaje conciso (50-150 palabras) para email o WhatsApp. Asegúrate de que cada mensaje tenga un enfoque diferente al anterior (Pérdida, Caso de Éxito, Oferta de Valor, Urgencia, Resolver Objeciones, Educativo, Pregunta, Testimonial, Simplicidad, Transformación). Incluye siempre un saludo personalizado con [Nombre], el cuerpo del mensaje con el enfoque seleccionado y un Llamado a la Acción (CTA) claro. La meta es convertir prospectos fríos en clientes.
+
+Información Clave:
+Tienes dos servicios para promocionar, dependiendo del perfil del prospecto:
+
+Marketing Estupendo (Servicio Premium - $350 USD):
+Clientes: Preparadores de documentos migratorios establecidos.
+Oferta: Servicio de Marketing Digital Profesional por $350 USD.
+Incluye: 10 guiones de video, 20 creativos para Meta Ads, campaña completa (investigación, gestión, optimización), revisiones semanales y acompañamiento.
+Prueba Social: Usamos este sistema para facturar más de $1.3M en nuestros servicios migratorios.
+Mensaje Clave: "Si un preparador no tiene una campaña profesional funcionando diariamente, está dejando dinero sobre la mesa. Cuando esté listo, nosotros la activamos."
+
+Tu Impulso Latino (Membresía - $29.99/mes):
+Clientes: Personas que quieren convertirse en preparadores y marketers digitales desde casa.
+Oferta: Membresía por $29.99/mes con 7 días de prueba gratis.
+Incluye: Clases en vivo semanales, módulos grabados, grupo privado, plantillas, guías y soporte por WhatsApp.
+Mensaje Clave: Invitar a escribir "ahora" para recibir el enlace de registro y "comenzar a transformar su vida".
+
+Lista de Enfoques para Variar los Mensajes:
+1. Enfoque de Pérdida: Enfatizar el dinero/clientes que se están perdiendo al no actuar.
+2. Caso de Éxito: Contar una historia breve y genérica de un cliente similar que tuvo éxito.
+3. Oferta de Valor Re-enfatizada: Recordar los beneficios clave del servicio de una manera nueva.
+4. Oferta Urgente/Limitada: Ofrecer un bonus extra (ej: una consultoría adicional) por tiempo limitado.
+5. Resolución de Objeciones: Anticipar y responder una objeción común (ej: "¿Funcionará para mí?", "No tengo tiempo").
+6. Enfoque Educativo: Compartir un tip o insight valioso y relacionado, demostrando expertise.
+7. Pregunta Abierta: Hacer una pregunta simple para re-enganchar la conversación.
+8. Testimonial: Incorporar una cita breve y ficticia de un "cliente satisfecho".
+9. Enfoque de Simplicidad: Destacar lo fácil que es empezar y que nosotros hacemos el trabajo pesado.
+10. Enfoque de Transformación: Pintar una imagen de cómo será su vida/vida laboral después de usar el servicio.
+11. El mensaje debe tener máximo entre 40 y 50 palabras.
+
 Historial de conversación:
 ${historialBitrix}
 
@@ -109,7 +143,7 @@ Mensaje de seguimiento:
             model: "gpt-5",
             messages: [{
                 role: "system",
-                content: "Eres un asistente experto en redactar mensajes de seguimiento para clientes de inmigración. Usa un tono cálido y profesional, estilo WhatsApp."
+                content: "Eres un asistente experto en redactar mensajes de seguimiento para clientes de inmigración o Marketing. Usa un tono cálido y profesional, estilo WhatsApp."
             }, {
                 role: "user",
                 content: prompt
@@ -274,6 +308,11 @@ const getLastConversation = (conversation) => {
 
 async function verificarTransferenciaAgente(chatId, ultimaRespuesta, ultimosDosMensajes, historialBitrix) {
     // console.log('ultimosDosMensajes', ultimosDosMensajes)
+
+    if (historialBitrix !== '' && typeof historialBitrix === 'string') {
+        return true;
+    }
+
     try {
         const prompt = `Analiza el siguiente mensaje y determina si indica que el cliente será transferido a un agente humano. 
 Responde solo con "SI" o "NO".
