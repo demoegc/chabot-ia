@@ -128,6 +128,8 @@ Lista de Enfoques para Variar los Mensajes:
 10. Enfoque de Transformación: Pintar una imagen de cómo será su vida/vida laboral después de usar el servicio.
 11. El mensaje debe tener máximo entre 40 y 50 palabras.
 
+IMPORTANTE: Nunca repitas las mismas preguntas o frases en usos posteriores. Varía siempre el mensaje para que parezca más natural.
+
 Historial de conversación:
 ${historialBitrix}
 
