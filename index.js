@@ -55,7 +55,7 @@ app.post('/mensaje-recordatorio', async (req, res) => {
     const soloHora24h = horaEnZona4.format('H');
     console.log(`Hora en formato de 24h: ${soloHora24h}`);
 
-    if (soloHora24h < 8) {
+    if (soloHora24h < 8 || soloHora24h > 17) {
       console.log('Se iba a enviar seguimiento antes del horario laboral, hora: ' + soloHora24h + '\n' + 'Teléfono del cliente: ' + chatId)
       const leadResponse = await axios.get(
         `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID`
