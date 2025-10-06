@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { OpenAI } = require("openai");
 const text = require('./utils/text.js');
+const textSeguimiento = require('./utils/text_seguimientos.js');
 const moment = require('moment-timezone');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
@@ -53,41 +54,12 @@ async function generarMensajeSeguimiento(chatId, trackingNumber) {
 
         // 4. Generar mensaje de seguimiento
         const prompt = `
-Basado en el siguiente historial de conversación, genera un ÚNICO mensaje de seguimiento.
-
-Quiero que actúes como un redactor de mensajes de seguimiento para un chatbot de WhatsApp especializado en trámites migratorios (asilo, permiso de trabajo y petición familiar). El objetivo es contactar prospectos que mostraron interés pero no han avanzado. 
-
 Reglas:
 1. Elige SOLO UN ejemplo de los que te doy como referencia para el trámite correcto (asilo, permiso de trabajo o petición familiar).
 2. Nunca mezcles ejemplos de distintos trámites.
 3. En los ejemplos, reemplaza [Nombre] por el primer nombre del cliente si lo tienes en el historial. Si no tienes el nombre, omite el saludo personalizado.
-4. El mensaje debe:
-   - Ser humano, cálido y empático.
-   - No sonar a persecución ni presión directa.
-   - Resaltar beneficios claros del trámite.
-   - Dar sensación de oportunidad que no debe perderse.
-   - Terminar con una pregunta abierta.
-   - Usar frases cortas y sencillas para WhatsApp.
-   - Evitar lenguaje legal o de asesoría jurídica.
-   - Si es petición familiar y el cliente está casado/a con ciudadano/a de EE.UU., personaliza el mensaje con esa información.
-   - Si tienes el nombre, saluda siempre por el primer nombre.
 
-Ejemplos de referencia:
-
-ASILO:
-- Ejemplo 1. Hola [Nombre] 😊 Quería contarte que varias personas que iniciaron su solicitud de asilo hace poco ya tienen su permiso de trabajo y están encontrando empleos estables. Es una gran oportunidad para empezar a construir seguridad aquí en EE.UU. ¿Quieres que te explique cómo podrías iniciar hoy?
-- Ejemplo 2. ¡Hola [Nombre]! 👋 Muchas personas que presentaron su asilo ya están trabajando legalmente mientras esperan la decisión. Así han podido mejorar sus ingresos y estabilidad. No quisiera que te quedaras fuera de esa posibilidad. ¿Quieres que te cuente cómo lograrlo?
-- Ejemplo 3. Hola [Nombre] 😊 Me alegra ver que cada vez más personas que solicitan asilo logran obtener su permiso de trabajo y avanzar en sus metas aquí en EE.UU. A veces, dar ese primer paso hace toda la diferencia. ¿Quieres que retomemos tu caso?
-
-PERMISO DE TRABAJO:
-- Ejemplo 1. ¡Hola [Nombre]! 👋 Con tu permiso de trabajo vigente podrías aplicar a mejores empleos, con más ingresos y beneficios. Muchos de nuestros clientes que lo renovaron ya están aprovechando nuevas oportunidades. ¿Quieres que te guíe para que no pierdas esa ventaja?
-- Ejemplo 2. Hola [Nombre] 😊 Tener el permiso de trabajo al día puede abrirte la puerta a empleos mejor pagados y con más estabilidad. Sería una pena que se venciera y frenar tus planes. ¿Quieres que te explique cómo renovarlo a tiempo?
-- Ejemplo 3. ¡Hola [Nombre]! 😃 Recuerda que con tu permiso vigente puedes trabajar legalmente, crecer profesionalmente y acceder a beneficios que sin él no tendrías. Si lo dejamos vencer, puede complicar tu situación. ¿Te cuento cómo evitarlo?
-
-PETICIÓN FAMILIAR (casado con ciudadano/a estadounidense):
-- Ejemplo 1. Hola [Nombre] 😊 Recuerdo que me comentaste que estás casado(a) con un(a) ciudadano(a) estadounidense. Este es un buen momento para iniciar la petición, ya que el proceso suele ser más rápido y podrías obtener tu residencia antes de lo que imaginas. ¿Quieres que retomemos lo que hablamos y avancemos con tu caso?
-- Ejemplo 2. ¡Hola [Nombre]! 👋 Como estás casado(a) con un(a) ciudadano(a) de EE.UU., tu trámite de residencia puede avanzar más rápido que en otros casos. Muchas parejas ya están disfrutando de este beneficio. ¿Quieres que te explique los pasos para que no pierdas tiempo?
-- Ejemplo 3. Hola [Nombre] 😊 Por tu matrimonio con un(a) ciudadano(a) estadounidense, tienes la ventaja de que el proceso para la residencia es más ágil. Entre más pronto lo iniciemos, más pronto podrás disfrutar de la estabilidad que trae. ¿Quieres que retomemos tu solicitud?
+${textSeguimiento}
 
 NOTA IMPORTANTE:
 - Genera **solo un mensaje de seguimiento cada vez** (no tres).
@@ -115,19 +87,6 @@ Clientes: Personas que quieren convertirse en preparadores y marketers digitales
 Oferta: Membresía por $29.99/mes con 7 días de prueba gratis.
 Incluye: Clases en vivo semanales, módulos grabados, grupo privado, plantillas, guías y soporte por WhatsApp.
 Mensaje Clave: Invitar a escribir "ahora" para recibir el enlace de registro y "comenzar a transformar su vida".
-
-Lista de Enfoques para Variar los Mensajes:
-1. Enfoque de Pérdida: Enfatizar el dinero/clientes que se están perdiendo al no actuar.
-2. Caso de Éxito: Contar una historia breve y genérica de un cliente similar que tuvo éxito.
-3. Oferta de Valor Re-enfatizada: Recordar los beneficios clave del servicio de una manera nueva.
-4. Oferta Urgente/Limitada: Ofrecer un bonus extra (ej: una consultoría adicional) por tiempo limitado.
-5. Resolución de Objeciones: Anticipar y responder una objeción común (ej: "¿Funcionará para mí?", "No tengo tiempo").
-6. Enfoque Educativo: Compartir un tip o insight valioso y relacionado, demostrando expertise.
-7. Pregunta Abierta: Hacer una pregunta simple para re-enganchar la conversación.
-8. Testimonial: Incorporar una cita breve y ficticia de un "cliente satisfecho".
-9. Enfoque de Simplicidad: Destacar lo fácil que es empezar y que nosotros hacemos el trabajo pesado.
-10. Enfoque de Transformación: Pintar una imagen de cómo será su vida/vida laboral después de usar el servicio.
-11. El mensaje debe tener máximo entre 40 y 50 palabras.
 
 IMPORTANTE: Nunca repitas las mismas preguntas o frases en usos posteriores. Varía siempre el mensaje para que parezca más natural.
 
@@ -252,7 +211,6 @@ async function responderConPdf(preguntaUsuario, chatId, channelId) {
             role: "system",
             content: `Hora actual ${dateInTimeZone}\n
 Asistente virtual de WhatsApp del equipo de "Tu Agente de Inmigración". Tono: Cercano, humano, profesional pero natural. Puede usar pequeños errores ortográficos y abreviaciones comunes. Estilo: Mensajes cortos (1 a 2 líneas máx.), tipo chat humano.
-Siempre que pregunte por un servicio, dile los presios y si gusta pagar para seguir con el proceso de desea.
 
 ${text}
 
