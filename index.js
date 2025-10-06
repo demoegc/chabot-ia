@@ -38,55 +38,57 @@ app.get('/send-message', async (req, res) => {
   return res.json({ message: 'Mensaje enviado' })
 })
 
-// app.post('/mensaje-recordatorio', async (req, res) => {
+// app.post('/mensaje-recordatorio', async (req, res) => {})
 
-//   const { phone, trackingNumber, channel } = req.query;
+app.post('/seguimiento', async (req, res) => {
 
-//   console.log('phone', phone)
-//   console.log('trackingNumber', trackingNumber)
+  const { phone, trackingNumber, channel } = req.query;
 
-//   try {
-//     let chatId = phone.split(',')[0].trim();
+  console.log('phone', phone)
+  console.log('trackingNumber', trackingNumber)
 
-//     chatId = chatId.replace(/\D/g, '');
+  try {
+    let chatId = phone.split(',')[0].trim();
 
-//     const zonaHoraria = 'America/New_York';
-//     const horaEnZona4 = moment().tz(zonaHoraria);
-//     const soloHora24h = horaEnZona4.format('H');
-//     console.log(`Hora en formato de 24h: ${soloHora24h}`);
+    chatId = chatId.replace(/\D/g, '');
 
-//     if (soloHora24h < 8 || soloHora24h > 17) {
-//       console.log('Se iba a enviar seguimiento antes del horario laboral, hora: ' + soloHora24h + '\n' + 'Teléfono del cliente: ' + chatId)
-//       const leadResponse = await axios.get(
-//         `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID`
-//       );
+    const zonaHoraria = 'America/New_York';
+    const horaEnZona4 = moment().tz(zonaHoraria);
+    const soloHora24h = horaEnZona4.format('H');
+    console.log(`Hora en formato de 24h: ${soloHora24h}`);
 
-//       if (leadResponse.data.result && leadResponse.data.result.length > 0) {
-//         const lead = leadResponse.data.result[leadResponse.data.result.length - 1];
-//         await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
-//           TEMPLATE_ID: 797,
-//           DOCUMENT_ID: [
-//             'crm',
-//             'CCrmDocumentLead',
-//             `LEAD_${lead.ID}`
-//           ],
-//         });
-//       }
-//       return res.json({ message: 'Tiene que esperar 8 horas para que le mensaje sea enviado' })
-//     }
+    if (soloHora24h < 8 || soloHora24h > 17) {
+      console.log('Se iba a enviar seguimiento antes del horario laboral, hora: ' + soloHora24h + '\n' + 'Teléfono del cliente: ' + chatId)
+      const leadResponse = await axios.get(
+        `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID`
+      );
 
-//     const { respuesta } = await generarMensajeSeguimiento(chatId, trackingNumber);
+      if (leadResponse.data.result && leadResponse.data.result.length > 0) {
+        const lead = leadResponse.data.result[leadResponse.data.result.length - 1];
+        await axios.post(`${BITRIX24_API_URL}bizproc.workflow.start`, {
+          TEMPLATE_ID: 797,
+          DOCUMENT_ID: [
+            'crm',
+            'CCrmDocumentLead',
+            `LEAD_${lead.ID}`
+          ],
+        });
+      }
+      return res.json({ message: 'Tiene que esperar 8 horas para que le mensaje sea enviado' })
+    }
 
-//     // Enviar respuesta
-//     console.log('respuesta', respuesta)
-//     console.log('chatId', chatId)
-//     await sendMessage(respuesta, chatId, 'seguimiento', channel)
-//     return res.json({ message: 'Mensaje de recordatorio enviado' })
+    const { respuesta } = await generarMensajeSeguimiento(chatId, trackingNumber);
 
-//   } catch (error) {
-//     console.log(error)
-//   }
-// })
+    // Enviar respuesta
+    console.log('respuesta', respuesta)
+    console.log('chatId', chatId)
+    await sendMessage(respuesta, chatId, 'seguimiento', channel)
+    return res.json({ message: 'Mensaje de recordatorio enviado' })
+
+  } catch (error) {
+    console.log(error)
+  }
+})
 
 // Agrega estas variables globales al inicio de tu archivo
 const messageBuffers = new Map();
