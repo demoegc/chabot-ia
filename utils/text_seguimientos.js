@@ -9,7 +9,7 @@ VARIABLES QUE Bitrix DEBE ENVIAR EN CADA TRIGGER (OBLIGATORIO):
 - opt_in (boolean) — true si el usuario dio consentimiento; false si no.
 - last_summary (string) — resumen corto guardado del historial (2–3 líneas).
 - last_messages_sent (array de strings) — los últimos 5 mensajes EXACTOS que se enviaron a ESTE cliente (puede estar vacío).
-- max_chars (int) — 100 por defecto.
+- max_chars (int) — 35 por defecto.
 - reply_received (boolean) — si el cliente respondió desde el último trigger (true/false).
 
 REGLAS GENERALES (OBLIGATORIAS)

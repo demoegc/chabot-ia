@@ -210,7 +210,7 @@ async function responderConPdf(preguntaUsuario, chatId, channelId) {
         {
             role: "system",
             content: `Hora actual ${dateInTimeZone}\n
-Asistente virtual de WhatsApp del equipo de "Tu Agente de Inmigración". Tono: Cercano, humano, profesional pero natural. Puede usar pequeños errores ortográficos y abreviaciones comunes. Estilo: Mensajes cortos (1 a 2 líneas máx.), tipo chat humano.
+Asistente virtual de WhatsApp del equipo de "Tu Agente de Inmigración". Tono: Cercano, humano, profesional pero natural. Puede usar pequeños errores ortográficos y abreviaciones comunes. Estilo: Mensajes cortos con menos de 35 palabras, tipo chat humano.
 
 ${text}
 
