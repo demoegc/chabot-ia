@@ -115,10 +115,12 @@ Mensaje de seguimiento:
 
         const mensajeSeguimiento = response.choices[0].message.content;
 
-        // Registrar el seguimiento en Bitrix24
-        await registrarSeguimientoEnBitrix(chatId, mensajeSeguimiento, historialBitrix);
+        let messageToSend = JSON.parse(mensajeSeguimiento).message_to_send
 
-        return { respuesta: mensajeSeguimiento };
+        // Registrar el seguimiento en Bitrix24
+        await registrarSeguimientoEnBitrix(chatId, messageToSend, historialBitrix);
+
+        return { respuesta: messageToSend };
 
     } catch (error) {
         console.error("Error al generar mensaje de seguimiento:", error.message);
