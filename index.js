@@ -40,7 +40,7 @@ app.get('/send-message', async (req, res) => {
 
 // app.post('/mensaje-recordatorio', async (req, res) => {})
 
-app.post('/seguimientos', async (req, res) => {
+app.post('/seguimientoss', async (req, res) => {
 
   const { phone, trackingNumber, channel } = req.query;
 
