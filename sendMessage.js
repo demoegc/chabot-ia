@@ -74,16 +74,16 @@ class WazzupAPI {
 const sendMessage = async (message, CHAT_ID, trackingNumber, channelId) => {
   // Configuración
   let API_KEY = '388c6743795c43b497b5408a617bec2d';
-  let CHANNEL_ID;
+  let CHANNEL_ID = channelId;
   // if (channelId == 'ffc12f3b-a97f-4471-ac36-ce18458da455' && trackingNumber == 'seguimiento') {
-  if (trackingNumber == 'seguimiento') {
-    CHANNEL_ID = '37e572a1-a8ec-460e-b71a-881f831ca905';
-  }
-  else {
-    CHANNEL_ID = channelId;
-  }
+  // if (trackingNumber == 'seguimiento') {
+  //   CHANNEL_ID = '37e572a1-a8ec-460e-b71a-881f831ca905';
+  // }
+  // else {
+  //   CHANNEL_ID = channelId;
+  // }
 
-  if(!CHANNEL_ID) CHANNEL_ID = '37e572a1-a8ec-460e-b71a-881f831ca905';
+  if(!CHANNEL_ID) CHANNEL_ID = '5cd1eb6b-8174-47dc-a8a2-dd1340883925'; // '37e572a1-a8ec-460e-b71a-881f831ca905'
   const CHAT_TYPE = 'whatsapp'; // whatsapp, viber, whatsgroup, instagram, telegram
 
   // Crear instancia de la API

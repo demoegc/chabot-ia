@@ -5,7 +5,9 @@ const path = require("path");
 const { OpenAI } = require("openai");
 const text = require('./utils/text.js');
 const textSeguimiento = require('./utils/text_seguimientos.js');
+const seguimientos = require('./utils/seguimientos.js');
 const moment = require('moment-timezone');
+const calcularTiempoTranscurrido = require('./utils/calcularTiempoTranscurrido.js')
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const BITRIX24_API_URL = process.env.BITRIX24_API_URL;
@@ -41,10 +43,209 @@ async function recuperarFragments(pregunta, topK = 3) {
     return similitudes.slice(0, topK);
 }
 
+function unirMensajes(mensajesDict) {
+  // 1. Obtener las claves del objeto como un array (['1', '2', '3', '4', '5']).
+  const claves = Object.keys(mensajesDict);
+
+  // 2. Ordenar las claves numéricamente. La función de comparación resta el
+  //    valor numérico de 'a' y 'b', asegurando el orden correcto (1, 2, 3...).
+  const clavesOrdenadas = claves.sort((a, b) => parseInt(a) - parseInt(b));
+
+  // 3. Obtener los mensajes en el orden correcto usando map.
+  const mensajesOrdenados = clavesOrdenadas.map(clave => mensajesDict[clave]);
+
+  // 4. Unir los mensajes con el método join(), usando '\n' como separador.
+  const cadenaFinal = mensajesOrdenados.join('\n');
+
+  return cadenaFinal;
+}
+
 async function generarMensajeSeguimiento(chatId, trackingNumber) {
     try {
         // Obtener historial directamente de Bitrix24
-        let { historial: historialBitrix, resumenHistorial } = await checkContactHistory(chatId, true);
+        let { historial: historialBitrix, resumenHistorial, dateCreate } = await checkContactHistory(chatId, true);
+
+        let ejemplos;
+
+        // Opción más eficiente convirtiendo a minúsculas
+        const historialLower = historialBitrix.toLowerCase();
+
+        if (historialLower.includes('asilo')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["ASILO"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["ASILO"]["semana_1"] : ejemplos = seguimientos["ASILO"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["ASILO"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["ASILO"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["ASILO"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["ASILO"]
+            }
+        }
+        else if (historialLower.includes('petición familiar') || historialLower.includes('peticion familiar')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["PETICIÓN FAMILIAR"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["PETICIÓN FAMILIAR"]["semana_1"] : ejemplos = seguimientos["PETICIÓN FAMILIAR"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["PETICIÓN FAMILIAR"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["PETICIÓN FAMILIAR"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["PETICIÓN FAMILIAR"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["PETICIÓN FAMILIAR"]
+            }
+        }
+        else if (historialLower.includes('permiso de trabajo') || historialLower.includes('ead')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["PERMISO DE TRABAJO"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["PERMISO DE TRABAJO"]["semana_1"] : ejemplos = seguimientos["PERMISO DE TRABAJO"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["PERMISO DE TRABAJO"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["PERMISO DE TRABAJO"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["PERMISO DE TRABAJO"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["PERMISO DE TRABAJO"]
+            }
+        }
+        else if (historialLower.includes('naturalización') || historialLower.includes('naturalizacion') || historialLower.includes('ciudadanía') || historialLower.includes('ciudadania')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["NATURALIZACIÓN"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["NATURALIZACIÓN"]["semana_1"] : ejemplos = seguimientos["NATURALIZACIÓN"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["NATURALIZACIÓN"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["NATURALIZACIÓN"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["NATURALIZACIÓN"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["NATURALIZACIÓN"]
+            }
+        }
+        else if (historialLower.includes('residencia') || historialLower.includes('green card') || historialLower.includes('ajuste')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["RESIDENCIA"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["RESIDENCIA"]["semana_1"] : ejemplos = seguimientos["RESIDENCIA"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["RESIDENCIA"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["RESIDENCIA"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["RESIDENCIA"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["RESIDENCIA"]
+            }
+        }
+        else if (historialLower.includes('corte') || historialLower.includes('juicio') || historialLower.includes('judge')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["CORTE"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["CORTE"]["semana_1"] : ejemplos = seguimientos["CORTE"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["CORTE"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["CORTE"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["CORTE"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["CORTE"]
+            }
+        }
+        else if (historialLower.includes('cambio de dirección') || historialLower.includes('cambio de direccion') || historialLower.includes('ar-11')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["CAMBIO DE DIRECCIÓN"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["CAMBIO DE DIRECCIÓN"]["semana_1"] : ejemplos = seguimientos["CAMBIO DE DIRECCIÓN"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["CAMBIO DE DIRECCIÓN"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["CAMBIO DE DIRECCIÓN"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["CAMBIO DE DIRECCIÓN"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["CAMBIO DE DIRECCIÓN"]
+            }
+        }
+        else if (historialLower.includes('fee anual') || historialLower.includes('fee')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["FEE ANUAL DE ASILO"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["FEE ANUAL DE ASILO"]["semana_1"] : ejemplos = seguimientos["FEE ANUAL DE ASILO"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["FEE ANUAL DE ASILO"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["FEE ANUAL DE ASILO"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["FEE ANUAL DE ASILO"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["FEE ANUAL DE ASILO"]
+            }
+        }
+        else if (historialLower.includes('carta de reloj') || historialLower.includes('clock letter') || historialLower.includes('reloj')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["CARTA DE RELOJ"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["CARTA DE RELOJ"]["semana_1"] : ejemplos = seguimientos["CARTA DE RELOJ"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["CARTA DE RELOJ"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["CARTA DE RELOJ"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["CARTA DE RELOJ"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["CARTA DE RELOJ"]
+            }
+        }
+        else if (historialLower.includes('visa') || historialLower.includes('b1') || historialLower.includes('b2') || historialLower.includes('turista') || historialLower.includes('turismo')) {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["VISAS B1/B2"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["VISAS B1/B2"]["semana_1"] : ejemplos = seguimientos["VISAS B1/B2"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["VISAS B1/B2"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["VISAS B1/B2"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["VISAS B1/B2"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["VISAS B1/B2"]
+            }
+        }
+        else {
+            if (dateCreate.unidad == 'días') {
+                ejemplos = seguimientos["GENÉRICOS UNIVERSALES"]["días"]
+            }
+            else if (dateCreate.unidad == 'semanas') {
+                ejemplos = dateCreate.cantidad == 1 ? ejemplos = seguimientos["GENÉRICOS UNIVERSALES"]["semana_1"] : ejemplos = seguimientos["GENÉRICOS UNIVERSALES"]["semana_2_3"]
+            }
+            else if (dateCreate.unidad == 'meses') {
+                if (dateCreate.cantidad == 1) ejemplos = seguimientos["GENÉRICOS UNIVERSALES"]["mes_1"]
+                else if (dateCreate.cantidad == 2 || dateCreate.cantidad == 3) ejemplos = seguimientos["GENÉRICOS UNIVERSALES"]["mes_2_3"]
+                else if (dateCreate.cantidad == 4 || dateCreate.cantidad == 5) ejemplos = seguimientos["GENÉRICOS UNIVERSALES"]["mes_4_5"]
+            }
+            else {
+                ejemplos = seguimientos["GENÉRICOS UNIVERSALES"]
+            }
+        }
 
         // if (!historialBitrix) {
         //     const mensajeDefault = "Hola, ¿en qué puedo ayudarte hoy?";
@@ -53,20 +254,33 @@ async function generarMensajeSeguimiento(chatId, trackingNumber) {
         // }
 
         // 4. Generar mensaje de seguimiento
+        ejemplos = unirMensajes(ejemplos)
+        console.log('ejemplos', ejemplos)
         const prompt = `
+Tiempo de seguimiento: ${dateCreate.cantidad} ${dateCreate.unidad}
+
 Reglas:
-1. Elige SOLO UN ejemplo de los que te doy como referencia para el trámite correcto (asilo, permiso de trabajo o petición familiar).
+1. Elige SOLO UN ejemplo de los que te doy como referencia para el trámite correcto (asilo, permiso de trabajo, petición familiar, etc).
 2. Nunca mezcles ejemplos de distintos trámites.
 3. En los ejemplos, reemplaza [Nombre] por el primer nombre del cliente si lo tienes en el historial. Si no tienes el nombre, omite el saludo personalizado.
 
-${textSeguimiento}
+${textSeguimiento ? `RESPUESTA QUE LA IA DEBE DEVOLVER A Bitrix CADA VEZ (formato JSON recomendado)
+{
+  "message_to_send": "<texto final, ≤ max_chars>",
+  "used_template_id": <id_plantilla_o_fallback>,
+  "final_message_hash": "<hash_del_mensaje_para_bitrix_storage>",
+  "updated_last_messages_sent": [ ...array con los últimos 5 mensajes actualizados... ],
+  "log": "Seleccionada plantilla X, aplicada 1 sustitución, emoji: sí/no",
+  "status": "sent"  // o "no_opt_in", "transferir_a_humano", "esperar_interaccion_humana"
+}` : ''}
+
+Ejemplos:
+${ejemplos}
 
 NOTA IMPORTANTE:
 - Genera **solo un mensaje de seguimiento cada vez** (no tres).
 - No repitas siempre el mismo ejemplo; varía entre ellos en usos posteriores para que parezca más natural.
-- Si no hay historial de conversación, genera un mensaje genérico y cálido, como: 
-  "Hola, ¿cómo has estado? Solo quería saber si aún estás interesado en avanzar con tu trámite migratorio. Estoy aquí para ayudarte cuando decidas continuar."
-
+- Si no hay historial de conversación, genera un mensaje genérico y cálido, como: "Hola, ¿cómo has estado? Solo quería saber si aún estás interesado en avanzar con tu trámite migratorio. Estoy aquí para ayudarte cuando decidas continuar."
 
 * También manejamos otro servicio totalmente diferente al de inimgración, y es sobre Marketing, si ves que en el resumen del historial se habla de marketing, ya no debes decir nada referente a inmigración.
 
@@ -124,9 +338,9 @@ Mensaje de seguimiento:
 
     } catch (error) {
         console.error("Error al generar mensaje de seguimiento:", error.message);
-        const mensajeError = "Hola, ¿sigues interesado en el trámite que hablamos anteriormente?";
-        await registrarSeguimientoEnBitrix(chatId, mensajeError, '');
-        return { respuesta: mensajeError };
+        // const mensajeError = "Hola, ¿sigues interesado en el trámite que hablamos anteriormente?";
+        // await registrarSeguimientoEnBitrix(chatId, mensajeError, '');
+        // return { respuesta: mensajeError };
     }
 }
 
@@ -371,7 +585,7 @@ async function sendDirectMessage(userId, message) {
             DIALOG_ID: userId,          // <- DM al usuario
             MESSAGE: message,           // texto plano o con BBCode simple
         };
-    
+
         const { data } = await axios.post(url, payload);
         if (data.error) throw new Error(`${data.error}: ${data.error_description}`);
         return data.result; // ID del mensaje enviado
@@ -435,7 +649,7 @@ async function checkContactHistory(chatId, obtenerResumen = false) {
     try {
         // 1. Primero buscar en Leads
         const leadResponse = await axios.get(
-            `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_HISTORIAL_FIELD}&SELECT[]=UF_CRM_1754666415`
+            `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_HISTORIAL_FIELD}&SELECT[]=UF_CRM_1754666415&SELECT[]=DATE_CREATE`
         );
 
         // Si encontramos leads, verificar el historial
@@ -445,7 +659,7 @@ async function checkContactHistory(chatId, obtenerResumen = false) {
             // Si el lead tiene contacto asociado, obtener el historial del contacto
             if (lead.CONTACT_ID && lead.CONTACT_ID !== '0') {
                 const contactResponse = await axios.get(
-                    `${BITRIX24_API_URL}crm.contact.get?id=${lead.CONTACT_ID}&SELECT[]=${BITRIX24_HISTORIAL_FIELD}&SELECT[]=UF_CRM_1754666415`
+                    `${BITRIX24_API_URL}crm.contact.get?id=${lead.CONTACT_ID}&SELECT[]=${BITRIX24_HISTORIAL_FIELD}&SELECT[]=UF_CRM_1754666415&SELECT[]=DATE_CREATE`
                 );
 
                 if (contactResponse.data.result) {
@@ -462,10 +676,12 @@ async function checkContactHistory(chatId, obtenerResumen = false) {
 
             // Si no tiene contacto o no se pudo obtener, devolver datos del lead
             if (obtenerResumen) {
+                let tiempoTranscurrido = calcularTiempoTranscurrido(lead['DATE_CREATE'])
                 return {
                     historial: lead[BITRIX24_HISTORIAL_FIELD] || '',
                     resumenHistorial: lead['UF_CRM_1754666415'] || '',
-                    entityType: 'lead'
+                    entityType: 'lead',
+                    dateCreate: tiempoTranscurrido || ''
                 };
             }
             return lead[BITRIX24_HISTORIAL_FIELD] || '';
