@@ -83,6 +83,10 @@ const sendMessage = async (message, CHAT_ID, trackingNumber, channelId) => {
   //   CHANNEL_ID = channelId;
   // }
 
+  if (CHANNEL_ID == '37e572a1-a8ec-460e-b71a-881f831ca905') {
+    return
+  }
+
   if(!CHANNEL_ID) CHANNEL_ID = '5cd1eb6b-8174-47dc-a8a2-dd1340883925'; // '37e572a1-a8ec-460e-b71a-881f831ca905'
   const CHAT_TYPE = 'whatsapp'; // whatsapp, viber, whatsgroup, instagram, telegram
 
