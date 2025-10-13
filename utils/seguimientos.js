@@ -69,7 +69,6 @@ const tramites = {
             56: "Buenos días, con solo $200 puedes retomar tu proceso y seguir avanzando. ¿Qué paso te gustaría iniciar?",
             57: "Hola, ¿cómo te sientes respecto a continuar con tu caso?",
             58: "¡Hola! Me alegra saludarte. ¿Qué información te gustaría que te actualice para seguir adelante?",
-            59: "Hola, ¿qué objetivo tienes actualmente con tu trámite de asilo?",
             60: "Buenos días, ¿qué te haría sentir acompañado y seguro durante tu proceso?"
         },
         "valor": {
