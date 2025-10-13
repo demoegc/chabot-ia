@@ -44,6 +44,10 @@ app.post('/seguimientos', async (req, res) => {
 
   const { phone, trackingNumber, channel } = req.query;
 
+  if (channel && channel.trim() == '37e572a1-a8ec-460e-b71a-881f831ca905') {
+    return res.json({ message: 'El mensaje no se enviará porque es del canal 561' })
+  }
+
   console.log('phone', phone)
   console.log('trackingNumber', trackingNumber)
 
@@ -530,7 +534,7 @@ async function checkContactAndFieldValue(phoneNumber) {
       //       }
       //     }
       //   )
-        
+
       //   return false
       // }
     } else if (lead.STATUS_ID == "UC_61ZU35") {
