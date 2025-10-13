@@ -44,20 +44,20 @@ async function recuperarFragments(pregunta, topK = 3) {
 }
 
 function unirMensajes(mensajesDict) {
-  // 1. Obtener las claves del objeto como un array (['1', '2', '3', '4', '5']).
-  const claves = Object.keys(mensajesDict);
+    // 1. Obtener las claves del objeto como un array (['1', '2', '3', '4', '5']).
+    const claves = Object.keys(mensajesDict);
 
-  // 2. Ordenar las claves numéricamente. La función de comparación resta el
-  //    valor numérico de 'a' y 'b', asegurando el orden correcto (1, 2, 3...).
-  const clavesOrdenadas = claves.sort((a, b) => parseInt(a) - parseInt(b));
+    // 2. Ordenar las claves numéricamente. La función de comparación resta el
+    //    valor numérico de 'a' y 'b', asegurando el orden correcto (1, 2, 3...).
+    const clavesOrdenadas = claves.sort((a, b) => parseInt(a) - parseInt(b));
 
-  // 3. Obtener los mensajes en el orden correcto usando map.
-  const mensajesOrdenados = clavesOrdenadas.map(clave => mensajesDict[clave]);
+    // 3. Obtener los mensajes en el orden correcto usando map.
+    const mensajesOrdenados = clavesOrdenadas.map(clave => mensajesDict[clave]);
 
-  // 4. Unir los mensajes con el método join(), usando '\n' como separador.
-  const cadenaFinal = mensajesOrdenados.join('\n');
+    // 4. Unir los mensajes con el método join(), usando '\n' como separador.
+    const cadenaFinal = mensajesOrdenados.join('\n');
 
-  return cadenaFinal;
+    return cadenaFinal;
 }
 
 async function generarMensajeSeguimiento(chatId, trackingNumber) {
@@ -597,7 +597,7 @@ async function sendDirectMessage(userId, message) {
 async function updateLeadField(phoneNumber, resumenHistorial, channelId) {
     try {
         // Primero obtener el ID del lead
-        const response = await axios.get(`${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=UF_CRM_1752006453&SELECT[]=ASSIGNED_BY_ID`);
+        const response = await axios.get(`${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=UF_CRM_1752006453&SELECT[]=ASSIGNED_BY_ID&SELECT[]=STATUS_ID`);
 
         if (!response.data.result || response.data.result.length === 0) {
             console.log(`No se encontró lead con número ${phoneNumber}`);
@@ -607,18 +607,32 @@ async function updateLeadField(phoneNumber, resumenHistorial, channelId) {
         const leadId = response.data.result[response.data.result.length - 1].ID;
         const responsible = response.data.result[response.data.result.length - 1].ASSIGNED_BY_ID;
         const respondiendoChatbot = response.data.result[response.data.result.length - 1].UF_CRM_1752006453;
+        const statusId = response.data.result[response.data.result.length - 1].STATUS_ID;
 
         if (respondiendoChatbot != '2709') {
             return null
         }
 
-        const leadUpdateData = {
-            id: leadId,
-            fields: {
+        let fields = {}
+
+        // Seguimiento 2 = UC_EMY4OP || Seguimiento 1 = UC_61ZU35
+        if (statusId == "UC_EMY4OP" || statusId == "UC_61ZU35") {
+            fields = {
                 "UF_CRM_1752006453": 2711,
                 "STATUS_ID": "UC_11XRR5",
                 "UF_CRM_1755880170": channelId || ''
             }
+        }
+        else {
+            fields = {
+                "UF_CRM_1752006453": 2711,
+                "UF_CRM_1755880170": channelId || ''
+            }
+        }
+
+        const leadUpdateData = {
+            id: leadId,
+            fields: fields
         };
 
         const commentData = {
