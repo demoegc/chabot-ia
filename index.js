@@ -47,6 +47,9 @@ app.post('/seguimientos', async (req, res) => {
   if (channel && channel.trim() == '37e572a1-a8ec-460e-b71a-881f831ca905') {
     return res.json({ message: 'El mensaje no se enviará porque es del canal 561' })
   }
+  else if (channel && channel.trim() == '5cd1eb6b-8174-47dc-a8a2-dd1340883925') {
+    return res.json({ message: 'El mensaje no se enviará porque es del canal 561' })
+  }
 
   console.log('phone', phone)
   console.log('trackingNumber', trackingNumber)
@@ -55,6 +58,15 @@ app.post('/seguimientos', async (req, res) => {
     let chatId = phone.split(',')[0].trim();
 
     chatId = chatId.replace(/\D/g, '');
+
+    const leadResponse = await axios.get(
+      `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${chatId}&SELECT[]=ID&SELECT[]=STATUS_ID`
+    );
+    const lead = leadResponse.data.result[leadResponse.data.result.length - 1];
+
+    if (lead.STATUS_ID == "UC_EMY4OP") {
+      return res.json({ message: 'El mensaje no se enviará porque está en "Seguimiento 2"' })
+    }
 
     const zonaHoraria = 'America/New_York';
     const horaEnZona4 = moment().tz(zonaHoraria);
