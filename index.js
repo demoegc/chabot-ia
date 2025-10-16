@@ -443,14 +443,21 @@ async function checkContactAndFieldValue(phoneNumber) {
   const horaFinLaboral = 19;
   const fueraDeHorario = horaActual < horaInicioLaboral || horaActual >= horaFinLaboral;
 
-  // Función para buscar el lead
-  const buscarLead = async () => {
+  // Función para modificar el número si empieza con 521 (quitar el 1 en posición 2)
+  const modificarNumero = (numero) => {
+    if (numero.startsWith('521') && numero.length > 3) {
+      return '52' + numero.substring(3);
+    }
+    return numero;
+  };
 
+  // Función para buscar el lead
+  const buscarLead = async (numeroABuscar) => {
     let lead;
 
     try {
       const leadResponse = await axios.get(
-        `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
+        `${BITRIX24_API_URL}crm.lead.list?FILTER[PHONE]=%2B${numeroABuscar}&SELECT[]=ID&SELECT[]=CONTACT_ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=STATUS_ID&SELECT[]=UF_CRM_1755093738&SELECT[]=ASSIGNED_BY_ID`
       );
 
       if (leadResponse.data.result && leadResponse.data.result.length > 0) {
@@ -468,7 +475,7 @@ async function checkContactAndFieldValue(phoneNumber) {
           if (fueraDeHorario) {
             return 'Fuera de horario';
           }
-          notificarTransferenciaAgente(phoneNumber)
+          notificarTransferenciaAgente(numeroABuscar)
           return false;
         }
         else if (lead.STATUS_ID === "UC_11XRR5") {
@@ -491,73 +498,93 @@ async function checkContactAndFieldValue(phoneNumber) {
   };
 
   // Bucle de búsqueda con máximo 24 intentos (2 minutos)
-  let intentos = 0;
-  const maxIntentos = 48;
-  const intervalo = 5000; // 5 segundos
+  const realizarBusqueda = async (numero) => {
+    let intentos = 0;
+    const maxIntentos = 24;
+    const intervalo = 5000; // 5 segundos
 
-  while (intentos < maxIntentos) {
-    const resultado = await buscarLead();
+    while (intentos < maxIntentos) {
+      const resultado = await buscarLead(numero);
 
-    // Si se encuentra un resultado válido (true, false o string), lo retornamos
-    if (resultado !== null) {
-      return resultado;
+      // Si se encuentra un resultado válido (true, false o string), lo retornamos
+      if (resultado !== null) {
+        return resultado;
+      }
+
+      intentos++;
+
+      // Si no es el último intento, esperamos 5 segundos
+      if (intentos < maxIntentos) {
+        console.log(`${numero} Lead no encontrado. Intento ${intentos}/${maxIntentos}. Esperando 5 segundos...`);
+        await new Promise(resolve => setTimeout(resolve, intervalo));
+      }
     }
 
-    intentos++;
+    console.log(`${numero} Lead no encontrado después de ${maxIntentos} intentos de ${intervalo} segundos.`);
+    return null;
+  };
 
-    // Si no es el último intento, esperamos 5 segundos
-    if (intentos < maxIntentos) {
-      console.log(`${phoneNumber} Lead no encontrado. Intento ${intentos}/${maxIntentos}. Esperando 5 segundos...`);
-      await new Promise(resolve => setTimeout(resolve, intervalo));
+  // Primera búsqueda con el número original
+  let resultado = await realizarBusqueda(phoneNumber);
+  
+  // Si no se encontró y el número empieza con 521, hacer segunda búsqueda con número modificado (quitando el 1)
+  if (resultado === null && phoneNumber.startsWith('521')) {
+    const numeroModificado = modificarNumero(phoneNumber);
+    console.log(`Realizando segunda búsqueda con número modificado: ${numeroModificado}`);
+    resultado = await realizarBusqueda(numeroModificado);
+  }
+
+  // Si después de ambas búsquedas no se encontró nada, buscar contacto
+  if (resultado === null) {
+    console.log(`${phoneNumber} Lead no encontrado después de ambas búsquedas. Buscando contacto...`);
+    
+    // Buscar contacto por número de teléfono
+    try {
+      const contactResponse = await axios.get(
+        `${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=UF_CRM_68A8DCEC8EF2D&SELECT[]=NAME&SELECT[]=LAST_NAME`
+      );
+
+      if (contactResponse.data.result && contactResponse.data.result.length > 0) {
+        // const contact = contactResponse.data.result[contactResponse.data.result.length - 1];
+        //   console.log('Buscando el contacto')
+        // if (contact.UF_CRM_68A8DCEC8EF2D == null || contact.UF_CRM_68A8DCEC8EF2D == '') {
+        //   console.log('contacto encontrado')
+
+        //   let titleLead = contact.NAME + (contact.LAST_NAME ? ' ' + contact.LAST_NAME : '')
+
+        //   await axios.post(`${BITRIX24_API_URL}crm.lead.add`,
+        //     {
+        //       fields:
+        //       {
+        //         TITLE: titleLead,
+        //         NAME: contact.NAME,
+        //         LAST_NAME: contact.LAST_NAME,
+        //         STATUS_ID: 'UC_61ZU35',
+        //         ASSIGNED_BY_ID: 9795,
+        //         PHONE: [
+        //           {
+        //             VALUE: `+${phoneNumber}`,
+        //             VALUE_TYPE: 'WORK',
+        //           },
+        //         ]
+        //       }
+        //     }
+        //   )
+
+        //   return false
+        // }
+      } else if (lead && lead.STATUS_ID == "UC_61ZU35") {
+        console.log('Contacto no encontrado. Se debe crear uno nuevo.');
+        return 'create'; // Retornar 'create' para indicar que se debe crear un nuevo contacto
+      }
+      return false
+    } catch (error) {
+      console.error('Error al buscar contacto en Bitrix24:', error.response?.data || error.message);
+      return false; // En caso de error, también retornar 'create'
     }
   }
 
-  console.log(`${phoneNumber} Lead no encontrado después de ${maxIntentos} intentos de ${intervalo} segundos. Buscando contacto...`);
-
-  // Buscar contacto por número de teléfono
-  try {
-    const contactResponse = await axios.get(
-      `${BITRIX24_API_URL}crm.contact.list?FILTER[PHONE]=%2B${phoneNumber}&SELECT[]=ID&SELECT[]=${BITRIX24_LIST_FIELD_ID}&SELECT[]=UF_CRM_68A8DCEC8EF2D&SELECT[]=NAME&SELECT[]=LAST_NAME`
-    );
-
-    if (contactResponse.data.result && contactResponse.data.result.length > 0) {
-      // const contact = contactResponse.data.result[contactResponse.data.result.length - 1];
-      //   console.log('Buscando el contacto')
-      // if (contact.UF_CRM_68A8DCEC8EF2D == null || contact.UF_CRM_68A8DCEC8EF2D == '') {
-      //   console.log('contacto encontrado')
-
-      //   let titleLead = contact.NAME + (contact.LAST_NAME ? ' ' + contact.LAST_NAME : '')
-
-      //   await axios.post(`${BITRIX24_API_URL}crm.lead.add`,
-      //     {
-      //       fields:
-      //       {
-      //         TITLE: titleLead,
-      //         NAME: contact.NAME,
-      //         LAST_NAME: contact.LAST_NAME,
-      //         STATUS_ID: 'UC_61ZU35',
-      //         ASSIGNED_BY_ID: 9795,
-      //         PHONE: [
-      //           {
-      //             VALUE: `+${phoneNumber}`,
-      //             VALUE_TYPE: 'WORK',
-      //           },
-      //         ]
-      //       }
-      //     }
-      //   )
-
-      //   return false
-      // }
-    } else if (lead.STATUS_ID == "UC_61ZU35") {
-      console.log('Contacto no encontrado. Se debe crear uno nuevo.');
-      return 'create'; // Retornar 'create' para indicar que se debe crear un nuevo contacto
-    }
-    return false
-  } catch (error) {
-    console.error('Error al buscar contacto en Bitrix24:', error.response?.data || error.message);
-    return false; // En caso de error, también retornar 'create'
-  }
+  return resultado;
 }
 
 // Función para crear un nuevo contacto en Bitrix24
